@@ -8,6 +8,14 @@ const prisma  = new PrismaClient();
 
 router.get('/', async (req: Request, res: Response) => {
   try {
+    const relayerAddress = (() => {
+      try {
+        return contractService.getRelayerAddress();
+      } catch {
+        return null;
+      }
+    })();
+
     const [
       relayerBalance,
       contractAddresses,
@@ -31,7 +39,7 @@ router.get('/', async (req: Request, res: Response) => {
         blockchain: {
           status:          relayerBalance.status === 'fulfilled' ? 'connected' : 'error',
           relayerBalance:  relayerBalance.status === 'fulfilled' ? relayerBalance.value : null,
-          relayerAddress:  contractService.getRelayerAddress(),
+          relayerAddress,
           contracts:       contractAddresses.status === 'fulfilled' ? contractAddresses.value : null,
         },
         ipfs: {
