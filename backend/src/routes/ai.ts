@@ -2,9 +2,13 @@ import { Router, Request, Response } from 'express';
 import { aiEngineService, riskLevelToUint8 } from '../services/aiEngineService';
 import { contractService } from '../services/contractService';
 import { PrismaClient } from '@prisma/client';
+import { verifyPrivyToken } from '../middleware/auth';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+// Protect all AI routes so only logged-in users can access them
+router.use(verifyPrivyToken);
 
 function fallbackFraudAssessment(params: {
   dealType: string;

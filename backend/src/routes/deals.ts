@@ -3,13 +3,14 @@ import { contractService } from '../services/contractService';
 import { ipfsService } from '../services/ipfsService';
 import { aiEngineService } from '../services/aiEngineService';
 import { PrismaClient } from '@prisma/client';
+import { verifyPrivyToken } from '../middleware/auth';
 
 const router = Router();
 const prisma = new PrismaClient();
 
 // POST /deals
 // Create a new deal (relayer pays gas)
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', verifyPrivyToken, async (req: Request, res: Response) => {
   try {
     const {
       sellerAddress, dealType, totalAmountWei,
@@ -162,7 +163,7 @@ router.get('/', async (req: Request, res: Response) => {
 
 // PATCH /deals/:id/state
 // Update cached deal state (called after on-chain events)
-router.patch('/:id/state', async (req: Request, res: Response) => {
+router.patch('/:id/state', verifyPrivyToken, async (req: Request, res: Response) => {
   try {
     const dealId = parseInt(String(req.params.id));
     const { state, currentMilestone } = req.body;
