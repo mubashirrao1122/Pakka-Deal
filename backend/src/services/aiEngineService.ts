@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import {
   AICollateralRequest,
   AICollateralResult,
@@ -10,14 +10,10 @@ import {
   AIRiskSummaryResult,
 } from '../types';
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
-});
-
-const MODEL = 'claude-sonnet-4-20250514';
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 function safeParseJSON<T>(text: string): T {
-  // Strip markdown code blocks if present
   const cleaned = text
     .replace(/```json\n?/g, '')
     .replace(/```\n?/g, '')
@@ -27,17 +23,9 @@ function safeParseJSON<T>(text: string): T {
 
 export const aiEngineService = {
 
-  // ─────────────────────────────────────────────
-  // FUNCTION 1: Dynamic Collateral Calculator
-  // ─────────────────────────────────────────────
+
   async calculateCollateral(req: AICollateralRequest): Promise<AICollateralResult> {
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 256,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a risk engine for Pakka Deal — a Pakistani 
+    const prompt = `You are a risk engine for Pakka Deal — a Pakistani 
 blockchain escrow platform. Calculate the correct collateral 
 percentage for this deal.
 
@@ -59,7 +47,7 @@ Rules to follow:
 - fraudFlag = true only if amount is suspiciously low 
   for the deal type (more than 70% below typical market)
 
-Return ONLY valid JSON with no extra text:
+Return ONLY valid raw JSON. No explanation, no markdown, no conversational text.
 {
   "collateralPercent": 18,
   "riskLevel": "LOW",
@@ -67,18 +55,13 @@ Return ONLY valid JSON with no extra text:
   "fraudFlag": false
 }
 
-riskLevel must be one of: LOW, MEDIUM, HIGH, CRITICAL`,
-        },
-      ],
-    });
+riskLevel must be one of: LOW, MEDIUM, HIGH, CRITICAL`;
 
-    const text = (response.content[0] as any).text;
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
     return safeParseJSON<AICollateralResult>(text);
   },
 
-  // ─────────────────────────────────────────────
-  // FUNCTION 2: Fraud and Scam Detection
-  // ─────────────────────────────────────────────
   async detectFraud(req: AIFraudRequest): Promise<AIFraudResult> {
     const marketContext = `
 Pakistani market price context (approximate ranges in PKR):
@@ -92,13 +75,7 @@ Pakistani market price context (approximate ranges in PKR):
 - iPhone 15 Pro Max: 3.5L - 4.5L
 - Samsung Galaxy S24: 2.5L - 3.5L`;
 
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 350,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a fraud detection engine for Pakka Deal — 
+    const prompt = `You are a fraud detection engine for Pakka Deal — 
 a Pakistani escrow platform. Analyze this deal for fraud risk.
 
 Deal description: ${req.description}
@@ -108,7 +85,7 @@ Seller Pakka Score: ${req.sellerScore} / 1000
 
 ${marketContext}
 
-Analyze and return ONLY valid JSON with no extra text:
+Analyze and return ONLY valid raw JSON. No explanation, no markdown, no conversational text.
 {
   "riskLevel": "LOW",
   "flags": ["list of specific red flags found, empty if none"],
@@ -119,26 +96,15 @@ riskLevel rules:
 - LOW: Price within 30% of market, seller has decent score
 - MEDIUM: Price 30-60% below market OR seller score under 300
 - HIGH: Price over 60% below market OR multiple red flags
-- CRITICAL: Price over 80% below market — very likely scam`,
-        },
-      ],
-    });
+- CRITICAL: Price over 80% below market — very likely scam`;
 
-    const text = (response.content[0] as any).text;
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
     return safeParseJSON<AIFraudResult>(text);
   },
 
-  // ─────────────────────────────────────────────
-  // FUNCTION 3: Deal Template Generator
-  // ─────────────────────────────────────────────
   async generateTemplate(req: AITemplateRequest): Promise<AITemplateResult> {
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 500,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a deal assistant for Pakka Deal — 
+    const prompt = `You are a deal assistant for Pakka Deal — 
 a Pakistani escrow platform. Extract deal structure from 
 this description. The user may write in English, Urdu, 
 or Roman Urdu (Urdu written in English letters).
@@ -162,7 +128,7 @@ Grace period rules:
 - PROPERTY: 168 hours (7 days) per milestone
 - PSL_FRANCHISE: 720 hours (30 days) per milestone
 
-Return ONLY valid JSON with no extra text:
+Return ONLY valid raw JSON. No explanation, no markdown, no conversational text.
 {
   "dealType": "PROPERTY",
   "title": "Short descriptive title in English (max 60 chars)",
@@ -177,34 +143,23 @@ Return ONLY valid JSON with no extra text:
 }
 
 detectedLanguage: "english", "urdu", or "roman_urdu"
-Milestones must sum to exactly 100 percent.`,
-        },
-      ],
-    });
+Milestones must sum to exactly 100 percent.`;
 
-    const text = (response.content[0] as any).text;
-    const result = safeParseJSON<AITemplateResult>(text);
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    const parsed = safeParseJSON<AITemplateResult>(text);
 
     // Validate milestones sum to 100
-    const sum = result.milestones.reduce((acc, m) => acc + m.percent, 0);
+    const sum = parsed.milestones.reduce((acc, m) => acc + m.percent, 0);
     if (Math.abs(sum - 100) > 1) {
       throw new Error(`AI returned milestones summing to ${sum}%, not 100%`);
     }
 
-    return result;
+    return parsed;
   },
 
-  // ─────────────────────────────────────────────
-  // FUNCTION 4: Counterparty Risk Summary
-  // ─────────────────────────────────────────────
   async generateRiskSummary(req: AIRiskSummaryRequest): Promise<AIRiskSummaryResult> {
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 400,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a trust advisor for Pakka Deal — 
+    const prompt = `You are a trust advisor for Pakka Deal — 
 a Pakistani escrow platform. Write a plain-language risk 
 summary for a potential buyer considering a deal with 
 this counterparty.
@@ -219,7 +174,7 @@ Counterparty data:
 - Average deal value: ₨${req.avgDealValuePkr.toLocaleString()}
 - Deal being considered: ${req.dealContext}
 
-Return ONLY valid JSON with no extra text:
+Return ONLY valid raw JSON. No explanation, no markdown, no conversational text.
 {
   "riskLevel": "LOW",
   "summary": "2-3 sentence plain language summary about this counterparty",
@@ -232,40 +187,29 @@ riskLevel rules:
 - LOW: score > 600, default rate < 10%, 5+ deals
 - MEDIUM: score 300-600 OR some defaults OR few deals  
 - HIGH: score < 300 OR default rate > 20%
-- CRITICAL: more defaults than completions`,
-        },
-      ],
-    });
+- CRITICAL: more defaults than completions`;
 
-    const text = (response.content[0] as any).text;
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
     return safeParseJSON<AIRiskSummaryResult>(text);
   },
 
-  // ─────────────────────────────────────────────
-  // FUNCTION 5: Dispute Analysis
-  // ─────────────────────────────────────────────
   async analyzeDispute(params: {
-    dealType:       string;
-    dealTitle:      string;
-    amountPkr:      number;
-    buyerClaim:     string;
-    sellerClaim:    string;
-    buyerEvidence:  string; // IPFS CID
+    dealType: string;
+    dealTitle: string;
+    amountPkr: number;
+    buyerClaim: string;
+    sellerClaim: string;
+    buyerEvidence: string; // IPFS CID
     sellerEvidence: string; // IPFS CID
   }): Promise<{
     recommendation: string;
-    buyerStrength:  string;
+    buyerStrength: string;
     sellerStrength: string;
     suggestedVerdict: string;
-    reasoning:      string;
+    reasoning: string;
   }> {
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 500,
-      messages: [
-        {
-          role: 'user',
-          content: `You are an impartial dispute analyst for Pakka Deal — 
+    const prompt = `You are an impartial dispute analyst for Pakka Deal — 
 a Pakistani escrow platform. Analyze this dispute and 
 provide guidance to arbitrators.
 
@@ -278,19 +222,17 @@ Buyer evidence IPFS: ${params.buyerEvidence || 'Not submitted'}
 Seller claims: ${params.sellerClaim}  
 Seller evidence IPFS: ${params.sellerEvidence || 'Not submitted'}
 
-Return ONLY valid JSON with no extra text:
+Return ONLY valid raw JSON. No explanation, no markdown, no conversational text.
 {
   "recommendation": "What arbitrators should focus on",
   "buyerStrength": "STRONG / MODERATE / WEAK",
   "sellerStrength": "STRONG / MODERATE / WEAK",
   "suggestedVerdict": "BUYER / SELLER / SPLIT",
   "reasoning": "2-3 sentence impartial analysis"
-}`,
-        },
-      ],
-    });
+}`;
 
-    const text = (response.content[0] as any).text;
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
     return safeParseJSON<any>(text);
   },
 };
