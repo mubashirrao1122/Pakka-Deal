@@ -4,10 +4,8 @@ import path from "path";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-
-  console.log("====================================");
   console.log("Pakka Deal — Contract Deployment");
-  console.log("====================================");
+  
   console.log("Deployer:", deployer.address);
 
   const balance = await ethers.provider.getBalance(deployer.address);
@@ -98,9 +96,7 @@ async function main() {
   }
   console.log("ABIs saved to /abis folder ✓");
 
-  console.log("\n====================================");
   console.log("DEPLOYMENT COMPLETE");
-  console.log("====================================");
   console.log(JSON.stringify(addresses, null, 2));
 }
 

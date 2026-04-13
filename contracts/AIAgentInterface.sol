@@ -44,7 +44,7 @@ contract AIAgentInterface is Ownable {
         _;
     }
 
-    // ── Frontend calls this to request collateral suggestion ──
+    // Frontend calls this to request collateral suggestion
     // AI service listens for this event and responds via fulfillCollateral
     function requestCollateral(
         uint256 dealId,
@@ -77,12 +77,12 @@ contract AIAgentInterface is Ownable {
         emit CollateralFulfilled(dealId, collateralPercent, riskLevel, fraudFlag);
     }
 
-    // ── Frontend calls this to generate deal template from description ──
+    // Frontend calls this to generate deal template from description
     function requestTemplate(uint256 requestId, string calldata description) external {
         emit TemplateRequested(requestId, description);
     }
 
-    // ── AI relayer fulfills template request ──
+    // AI relayer fulfills template request
     function fulfillTemplate(
         uint256 requestId,
         string calldata dealType,
@@ -102,7 +102,7 @@ contract AIAgentInterface is Ownable {
         emit TemplateFulfilled(requestId, dealType, suggestedCollateralPct);
     }
 
-    // ── View functions ──
+    // View functions 
     function getRiskResult(uint256 dealId) external view returns (AIRiskResult memory) {
         return riskResults[dealId];
     }
