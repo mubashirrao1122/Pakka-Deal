@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import Login from './components/Login'
 import VerifyIdentity from './components/VerifyIdentity'
 import Dashboard from './components/Dashboard'
+import PayDeal from './components/PayDeal'
 
 function App() {
   const { ready, authenticated } = usePrivy()
@@ -21,6 +22,17 @@ function App() {
       }
     }
   }, [anonAadhaar])
+
+  // ── Simple Routing: /pay/:dealId ──
+  const pathname = window.location.pathname
+  const payMatch = pathname.match(/^\/pay\/(\d+)/)
+
+  if (payMatch) {
+    const dealId = parseInt(payMatch[1], 10)
+    return <PayDeal dealId={dealId} />
+  }
+
+  // ── Standard 3-State Orchestration ──
 
   // Wait for Privy SDK to initialize
   if (!ready) {

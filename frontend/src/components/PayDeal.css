@@ -1,0 +1,432 @@
+/*
+  PayDeal.css
+  Aesthetic: Monochrome Brutalist Trust — Buyer Payment View
+*/
+
+/* ── Container ─────────────────────────────────── */
+
+.pay-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg-color, #050505);
+}
+
+/* ── Brand Bar ─────────────────────────────────── */
+
+.pay-brand-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 30px;
+  padding: 12px 24px;
+  border: 1px solid var(--border-color, rgba(255,255,255,0.2));
+  background: rgba(10,10,10,0.9);
+}
+
+.pay-badge {
+  font-size: 0.6rem;
+  letter-spacing: 2px;
+  padding: 4px 12px;
+  background: rgba(0,255,102,0.1);
+  border: 1px solid var(--accent-color, #00ff66);
+  color: var(--accent-color, #00ff66);
+  margin-left: auto;
+}
+
+/* ── Grid ──────────────────────────────────────── */
+
+.pay-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  width: 100%;
+  max-width: 1100px;
+}
+
+@media (max-width: 850px) {
+  .pay-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pay-panel {
+  padding: 0;
+}
+
+.pay-panel:first-child .terminal-box {
+  border-right: none;
+}
+
+@media (max-width: 850px) {
+  .pay-panel:first-child .terminal-box {
+    border-right: 1px solid var(--border-color, rgba(255,255,255,0.2));
+    border-bottom: none;
+  }
+}
+
+/* ── Deal Title ────────────────────────────────── */
+
+.pay-deal-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--fg-color, #e0e0e0);
+  line-height: 1.5;
+  margin-bottom: 25px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.1));
+}
+
+/* ── Details Grid ──────────────────────────────── */
+
+.pay-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border-color, rgba(255,255,255,0.15));
+  border: 1px solid var(--border-color, rgba(255,255,255,0.15));
+  margin-bottom: 25px;
+}
+
+.pay-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 14px;
+  background: rgba(10,10,10,0.9);
+}
+
+.pay-detail-label {
+  font-size: 0.6rem;
+  letter-spacing: 1px;
+  color: rgba(255,255,255,0.35);
+}
+
+.pay-detail-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--fg-color, #e0e0e0);
+}
+
+.pay-type {
+  color: var(--accent-color, #00ff66);
+}
+
+.pay-state {
+  color: #ffbd2e;
+}
+
+.pay-addr {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: rgba(255,255,255,0.5);
+}
+
+/* ── Security Badges ───────────────────────────── */
+
+.pay-security-badges {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sec-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.75rem;
+  letter-spacing: 0.5px;
+  color: rgba(255,255,255,0.5);
+  padding: 8px 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.02);
+}
+
+.sec-badge span {
+  color: var(--accent-color, #00ff66);
+  font-size: 0.9rem;
+}
+
+/* ── Payment Gateway ───────────────────────────── */
+
+.pay-gateway-box {
+  border-color: rgba(0,255,102,0.15);
+}
+
+.gateway-banner {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 18px;
+  border: 1px solid rgba(0,255,102,0.2);
+  background: rgba(0,255,102,0.03);
+  margin-bottom: 25px;
+}
+
+.gateway-icon {
+  font-size: 2rem;
+  font-weight: 900;
+  color: var(--accent-color, #00ff66);
+  text-shadow: 0 0 15px rgba(0,255,102,0.4);
+  line-height: 1;
+}
+
+.gateway-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.gateway-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--fg-color, #e0e0e0);
+}
+
+.gateway-sub {
+  font-size: 0.7rem;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 0.5px;
+}
+
+/* ── Pay Button ────────────────────────────────── */
+
+.pay-btn {
+  width: 100%;
+  margin-top: 15px;
+  border-color: var(--accent-color, #00ff66);
+  color: var(--accent-color, #00ff66);
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 16px 20px;
+}
+
+.pay-btn:hover:not(:disabled) {
+  background: rgba(0,255,102,0.12);
+  box-shadow: 0 0 20px rgba(0,255,102,0.1);
+}
+
+.pay-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+/* ── Inline Error ──────────────────────────────── */
+
+.pay-inline-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid #ff5f56;
+  background: rgba(255,95,86,0.05);
+  color: #ff5f56;
+  font-size: 0.8rem;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+/* ── Assurance ─────────────────────────────────── */
+
+.pay-assurance {
+  margin-top: 20px;
+  padding: 15px;
+  border: 1px solid var(--border-color, rgba(255,255,255,0.1));
+  background: rgba(255,255,255,0.02);
+}
+
+.pay-assurance p {
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.4);
+  margin: 0 0 6px 0;
+  letter-spacing: 0.3px;
+}
+
+.pay-assurance p:last-child {
+  margin-bottom: 0;
+}
+
+/* ── Loading State ─────────────────────────────── */
+
+.pay-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+.pay-scan-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pay-scan-line {
+  width: 200px;
+  height: 2px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--accent-color, #00ff66) 50%,
+    transparent 100%
+  );
+  animation: scanPulse 1.5s ease-in-out infinite;
+}
+
+.pay-scan-line:nth-child(2) { animation-delay: 0.3s; }
+.pay-scan-line:nth-child(3) { animation-delay: 0.6s; }
+
+.pay-loading-text {
+  font-size: 0.85rem;
+  color: var(--accent-color, #00ff66);
+  letter-spacing: 1px;
+  margin: 0;
+}
+
+.pay-loading-sub {
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.3);
+  margin: 0;
+}
+
+/* ── Error Block ───────────────────────────────── */
+
+.pay-error-block {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.error-icon-lg {
+  font-size: 2.5rem;
+  color: #ff5f56;
+  display: block;
+  margin-bottom: 15px;
+}
+
+.pay-error-block h2 {
+  font-size: 1.1rem;
+  letter-spacing: 2px;
+  color: #ff5f56;
+  margin: 0 0 10px 0;
+}
+
+.pay-error-block p {
+  color: rgba(255,255,255,0.4);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+/* ── Success State ─────────────────────────────── */
+
+.pay-success-box {
+  max-width: 600px;
+  width: 100%;
+}
+
+.pay-success-body {
+  text-align: center;
+}
+
+.pay-success-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--accent-color, #00ff66);
+  margin: 0 0 25px 0;
+  text-shadow: 0 0 15px rgba(0,255,102,0.3);
+}
+
+.pay-success-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border-color, rgba(255,255,255,0.15));
+  border: 1px solid var(--border-color, rgba(255,255,255,0.15));
+  margin-bottom: 25px;
+}
+
+.pay-success-message {
+  padding: 20px;
+  border: 1px solid rgba(0,255,102,0.15);
+  background: rgba(0,255,102,0.03);
+  margin-bottom: 25px;
+}
+
+.success-line {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--accent-color, #00ff66);
+  margin: 0 0 10px 0;
+}
+
+.success-sub {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.5);
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* ── Timeline ──────────────────────────────────── */
+
+.pay-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  text-align: left;
+}
+
+.timeline-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 15px;
+  border-left: 2px solid rgba(255,255,255,0.1);
+  position: relative;
+}
+
+.timeline-step.done {
+  border-left-color: var(--accent-color, #00ff66);
+}
+
+.timeline-step.pending {
+  opacity: 0.5;
+}
+
+.tl-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  flex-shrink: 0;
+}
+
+.timeline-step.done .tl-dot {
+  background: var(--accent-color, #00ff66);
+  box-shadow: 0 0 8px rgba(0,255,102,0.5);
+}
+
+.timeline-step.pending .tl-dot {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.3);
+}
+
+.tl-label {
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+  color: rgba(255,255,255,0.5);
+}
+
+.timeline-step.done .tl-label {
+  color: var(--fg-color, #e0e0e0);
+}
+
+/* ── Reuse Keyframes ───────────────────────────── */
+
+@keyframes scanPulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
