@@ -3,8 +3,24 @@ pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+// IAnonAadhaar — Interface for the Anon Aadhaar on-chain ZK proof verifier.
+// We define it inline so the contract compiles even if the npm package
+// is not yet installed. Replace with the package import once available:
+//   import "@anon-aadhaar/contracts/interfaces/IAnonAadhaar.sol";
+interface IAnonAadhaar {
+    function verifyAnonAadhaarProof(
+        uint256 nullifierSeed,
+        uint256 nullifier,
+        uint256 timestamp,
+        uint256 signal,
+        uint256[4] calldata revealArray,
+        uint256[8] calldata groth16Proof
+    ) external view returns (bool);
+}
+
 contract DIDRegistry is Ownable {
 
+    // ── Identity struct (unchanged) ──────────────────────────
     struct Identity {
         bool    verified;
         uint256 pakkaScore;
@@ -16,56 +32,128 @@ contract DIDRegistry is Ownable {
         uint256 registeredAt;
     }
 
+    // ── State ────────────────────────────────────────────────
     mapping(address => Identity) public identities;
     mapping(uint256 => bool)     public usedNullifiers;
 
     address public escrowVault;
 
+    /// @notice Anon Aadhaar ZK verifier contract
+    IAnonAadhaar public anonAadhaarVerifier;
+
+    /// @notice Application-specific nullifier seed (unique per dApp)
+    uint256 public constant NULLIFIER_SEED = 1234567890;
+
+    /// @notice Maximum proof age: 1 hour (3600 seconds)
+    uint256 public constant PROOF_MAX_AGE = 3600;
+
+    // ── Events ───────────────────────────────────────────────
     event DIDRegistered(address indexed wallet, uint256 nullifierHash);
     event ScoreIncremented(address indexed wallet, uint256 newScore, uint256 dealsCompleted);
     event ScoreDecremented(address indexed wallet, uint256 newScore, uint256 dealsDefaulted);
     event EscrowVaultUpdated(address indexed newVault);
 
+    // ── Modifiers ────────────────────────────────────────────
     modifier onlyEscrowVault() {
         require(msg.sender == escrowVault, "Only EscrowVault can call this");
         _;
     }
 
-    constructor() Ownable(msg.sender) {}
+    // ── Constructor (now accepts verifier address) ───────────
+    constructor(address _verifier) Ownable(msg.sender) {
+        anonAadhaarVerifier = IAnonAadhaar(_verifier);
+    }
 
-    // ── Owner sets EscrowVault address after deployment ──
+    // ══════════════════════════════════════════════════════════
+    //  ADMIN
+    // ══════════════════════════════════════════════════════════
+
+    /// @notice Owner sets EscrowVault address after deployment
     function setEscrowVault(address _vault) external onlyOwner {
         require(_vault != address(0), "Invalid vault address");
         escrowVault = _vault;
         emit EscrowVaultUpdated(_vault);
     }
 
-    // ── Register identity (user calls this once) ──
-    // nullifierHash = keccak256 of CNIC — prevents duplicate registration
-    // In production this would be a ZK proof verification
-    // For hackathon: simplified to hash check
-    function registerDID(uint256 nullifierHash) external {
-        require(!identities[msg.sender].verified, "Already registered");
-        require(!usedNullifiers[nullifierHash], "CNIC already registered to another wallet");
-        require(nullifierHash != 0, "Invalid nullifier");
+    // ══════════════════════════════════════════════════════════
+    //  REGISTRATION — ZK Proof via Anon Aadhaar
+    // ══════════════════════════════════════════════════════════
 
+    /**
+     * @notice Register a DID by providing a valid Anon Aadhaar ZK proof.
+     *         Proves the user has a valid government ID and is over 18,
+     *         without revealing the actual ID number.
+     *
+     * @param nullifier      Unique nullifier derived from the user's ID + seed
+     * @param timestamp      When the ID document's QR was signed
+     * @param signal         Must equal uint256(uint160(msg.sender)) to bind proof to wallet
+     * @param revealArray    Selective disclosure: revealArray[0] == 1 ⇒ age > 18
+     * @param groth16Proof   The 8-element Groth16 proof array
+     */
+    function registerDID(
+        uint256 nullifier,
+        uint256 timestamp,
+        uint256 signal,
+        uint256[4] calldata revealArray,
+        uint256[8] calldata groth16Proof
+    ) external {
+        require(!identities[msg.sender].verified, "Already registered");
+        require(!usedNullifiers[nullifier], "ID already registered to another wallet");
+        require(nullifier != 0, "Invalid nullifier");
+
+        // ── Signal must match the caller's wallet address ──
+        require(
+            signal == uint256(uint160(msg.sender)),
+            "Signal must match msg.sender"
+        );
+
+        // ── Age > 18 check: revealArray[0] must be 1 ──
+        require(
+            revealArray[0] == 1,
+            "Must be over 18 to register"
+        );
+
+        // ── Proof freshness: timestamp within PROOF_MAX_AGE ──
+        require(
+            block.timestamp - timestamp <= PROOF_MAX_AGE,
+            "Proof expired: generate a fresh QR scan"
+        );
+
+        // ── Verify the Groth16 ZK proof on-chain ──
+        require(
+            anonAadhaarVerifier.verifyAnonAadhaarProof(
+                NULLIFIER_SEED,
+                nullifier,
+                timestamp,
+                signal,
+                revealArray,
+                groth16Proof
+            ),
+            "Invalid Anon Aadhaar proof"
+        );
+
+        // ── Initialize identity ──
         identities[msg.sender] = Identity({
             verified:       true,
             pakkaScore:     100,
             dealsCompleted: 0,
             dealsDefaulted: 0,
             dealsDisputed:  0,
-            nullifierHash:  nullifierHash,
+            nullifierHash:  nullifier,
             totalVolumeWei: 0,
             registeredAt:   block.timestamp
         });
 
-        usedNullifiers[nullifierHash] = true;
+        usedNullifiers[nullifier] = true;
 
-        emit DIDRegistered(msg.sender, nullifierHash);
+        emit DIDRegistered(msg.sender, nullifier);
     }
 
-    // ── Called by EscrowVault on deal completion ──
+    // ══════════════════════════════════════════════════════════
+    //  SCORING — called by EscrowVault
+    // ══════════════════════════════════════════════════════════
+
+    /// @notice Called by EscrowVault on deal completion
     function incrementScore(address user) external onlyEscrowVault {
         if (!identities[user].verified) return;
         Identity storage id = identities[user];
@@ -86,7 +174,7 @@ contract DIDRegistry is Ownable {
         emit ScoreIncremented(user, id.pakkaScore, id.dealsCompleted);
     }
 
-    // ── Called by EscrowVault on default or dispute loss ──
+    /// @notice Called by EscrowVault on default or dispute loss
     function decrementScore(address user) external onlyEscrowVault {
         if (!identities[user].verified) return;
         Identity storage id = identities[user];
@@ -102,7 +190,10 @@ contract DIDRegistry is Ownable {
         emit ScoreDecremented(user, id.pakkaScore, id.dealsDefaulted);
     }
 
-    // ── View functions ──
+    // ══════════════════════════════════════════════════════════
+    //  VIEW FUNCTIONS
+    // ══════════════════════════════════════════════════════════
+
     function getIdentity(address user) external view returns (Identity memory) {
         return identities[user];
     }

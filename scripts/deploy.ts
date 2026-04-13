@@ -22,9 +22,14 @@ async function main() {
   const forwarderAddress = await forwarder.getAddress();
   console.log("    PakkaDealForwarder:", forwarderAddress);
 
+  // Anon Aadhaar verifier address — replace with real testnet address later
+  // Sepolia: 0x... | Mainnet: 0x... | Local: use mock or zero address
+  const ANON_AADHAAR_VERIFIER = "0x0000000000000000000000000000000000000000";
+  console.log("    Anon Aadhaar Verifier (mock):", ANON_AADHAAR_VERIFIER);
+
   console.log("\n[2/4] Deploying DIDRegistry...");
   const DIDRegistry = await ethers.getContractFactory("DIDRegistry");
-  const didRegistry = await DIDRegistry.deploy();
+  const didRegistry = await DIDRegistry.deploy(ANON_AADHAAR_VERIFIER);
   await didRegistry.waitForDeployment();
   const didRegistryAddress = await didRegistry.getAddress();
   console.log("    DIDRegistry:", didRegistryAddress);
