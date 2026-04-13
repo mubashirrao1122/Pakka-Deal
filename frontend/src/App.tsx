@@ -1,12 +1,26 @@
 import './App.css'
 import { usePrivy } from '@privy-io/react-auth'
 import { useAnonAadhaar } from '@anon-aadhaar/react'
+import { useState, useEffect } from 'react'
 import Login from './components/Login'
 import VerifyIdentity from './components/VerifyIdentity'
+import Dashboard from './components/Dashboard'
 
 function App() {
   const { ready, authenticated } = usePrivy()
   const [anonAadhaar] = useAnonAadhaar()
+  const [nullifier, setNullifier] = useState<string | null>(null)
+
+  // Extract nullifier when ZK proof completes
+  useEffect(() => {
+    if (anonAadhaar.status === 'logged-in') {
+      const proof = anonAadhaar.anonAadhaarProofs?.[0]
+      if (proof) {
+        const n = (proof as any).pcd?.proof?.nullifier ?? (proof as any).nullifier ?? null
+        setNullifier(n ? String(n) : null)
+      }
+    }
+  }, [anonAadhaar])
 
   // Wait for Privy SDK to initialize
   if (!ready) {
@@ -17,7 +31,7 @@ function App() {
     )
   }
 
-  // State 1: Not logged in via Privy → show phone login
+  // State 1: Not logged in via Privy → show email login
   if (!authenticated) {
     return (
       <div className="app-layout">
@@ -35,42 +49,8 @@ function App() {
     )
   }
 
-  // State 3: Both Privy + Anon Aadhaar verified → Dashboard placeholder
-  return (
-    <div className="app-layout">
-      <div className="dashboard-gate">
-        <div className="terminal-box">
-          <div className="terminal-header">
-            <span className="dot"></span>
-            <span className="dot"></span>
-            <span className="dot"></span>
-            <div className="header-title">PAKKA_DEAL_v1</div>
-          </div>
-          <div className="terminal-body">
-            <div className="gate-badge">
-              <span className="gate-icon">◆</span>
-            </div>
-            <h2 className="gate-title">[ DASHBOARD_ACCESS_GRANTED ]</h2>
-            <p className="gate-sub">Full escrow protocol access unlocked. Identity verified via ZK proof.</p>
-            <div className="gate-stats">
-              <div className="gate-stat">
-                <span className="gate-stat-val">100</span>
-                <span className="gate-stat-label">PAKKA_SCORE</span>
-              </div>
-              <div className="gate-stat">
-                <span className="gate-stat-val">0</span>
-                <span className="gate-stat-label">ACTIVE_DEALS</span>
-              </div>
-              <div className="gate-stat">
-                <span className="gate-stat-val">ZK</span>
-                <span className="gate-stat-label">ID_STATUS</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+  // State 3: Both Privy + Anon Aadhaar verified → Dashboard
+  return <Dashboard pakkaScore={100} nullifier={nullifier} />
 }
 
 export default App
