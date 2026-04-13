@@ -25,6 +25,15 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
   const [result, setResult] = useState<AITemplateResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Deal creation state
+  const [creating, setCreating] = useState(false);
+  const [dealSuccess, setDealSuccess] = useState<{
+    dealId: number;
+    txHash: string;
+    metadataCid: string | null;
+  } | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+
   const handleAnalyzeDeal = async () => {
     if (!description.trim()) {
       setError('DESCRIPTION_REQUIRED');
@@ -59,6 +68,78 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
       setError('NETWORK_ERROR: ' + (err?.message || 'Connection refused'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateDeal = async () => {
+    if (!result) return;
+
+    setCreating(true);
+    setError(null);
+
+    try {
+      const token = await getAccessToken();
+      const sellerAddress = user?.wallet?.address || '0x0000000000000000000000000000000000000000';
+
+      // Convert milestone percentages into wei amounts
+      // For demo: use a placeholder total amount (e.g., description-extracted or 1 ETH)
+      const totalAmountWei = '1000000000000000000'; // 1 ETH placeholder
+      const milestoneLabels = result.milestones.map((m) => m.label);
+      const milestoneAmounts = result.milestones.map((m) =>
+        String(Math.floor((m.percent / 100) * 1e18))
+      );
+
+      const res = await fetch('http://localhost:3001/api/deals', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          sellerAddress,
+          dealType: result.dealType === 'CAR' ? 0 : result.dealType === 'PROPERTY' ? 1 : 2,
+          totalAmountWei,
+          collateralPercent: result.suggestedCollateralPct,
+          milestoneLabels,
+          milestoneAmounts,
+          title: result.title,
+          amountPkr: 0,
+          buyerWallet: buyerWallet || undefined,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setDealSuccess(data.data);
+      } else {
+        setError(data.error || 'DEAL_CREATION_FAILED');
+      }
+    } catch (err: any) {
+      console.error('[DASHBOARD] Deal creation failed:', err);
+      setError('CONTRACT_ERROR: ' + (err?.message || 'Transaction failed'));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!dealSuccess) return;
+    const link = `${window.location.origin}/pay/${dealSuccess.dealId}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 3000);
+    } catch {
+      // Fallback for non-HTTPS
+      const textArea = document.createElement('textarea');
+      textArea.value = link;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 3000);
     }
   };
 
@@ -246,9 +327,79 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
                     </div>
                   </div>
 
-                  <button className="brutalist-btn create-btn">
-                    <span className="btn-text">{'>'} CREATE_DEAL_ON_CHAIN</span>
-                    <span className="cursor-blink">_</span>
+                  <button
+                    className="brutalist-btn create-btn"
+                    onClick={handleCreateDeal}
+                    disabled={creating}
+                  >
+                    <span className="btn-text">
+                      {creating
+                        ? '[ INITIATING_SMART_CONTRACT... ]'
+                        : '> CREATE_DEAL_ON_CHAIN'}
+                    </span>
+                    {!creating && <span className="cursor-blink">_</span>}
+                    {creating && <span className="spinner-inline"></span>}
+                  </button>
+                </div>
+              )}
+
+              {/* Deal Deployed Success */}
+              {dealSuccess && (
+                <div className="output-results deal-success">
+                  <div className="success-glow">
+                    <div className="glow-ring"></div>
+                    <div className="glow-icon">✓</div>
+                  </div>
+
+                  <h3 className="success-title">[ DEAL_SMART_CONTRACT_DEPLOYED ]</h3>
+
+                  <div className="result-grid">
+                    <div className="result-card highlight-card">
+                      <span className="card-label">DEAL_ID</span>
+                      <span className="card-value type-value">#{dealSuccess.dealId}</span>
+                    </div>
+                    <div className="result-card">
+                      <span className="card-label">STATUS</span>
+                      <span className="card-value accent-value">ON_CHAIN</span>
+                    </div>
+                  </div>
+
+                  <div className="result-section">
+                    <span className="section-label">TX_HASH:</span>
+                    <span className="section-value tx-hash">
+                      {dealSuccess.txHash.slice(0, 18)}...{dealSuccess.txHash.slice(-12)}
+                    </span>
+                  </div>
+
+                  <div className="result-section buyer-link-section">
+                    <span className="section-label">BUYER_PAYMENT_LINK:</span>
+                    <span className="section-value link-value">
+                      {window.location.origin}/pay/{dealSuccess.dealId}
+                    </span>
+                  </div>
+
+                  <button
+                    className="brutalist-btn copy-btn"
+                    onClick={handleCopyLink}
+                  >
+                    <span className="btn-text">
+                      {linkCopied
+                        ? '◉ LINK_COPIED_TO_CLIPBOARD'
+                        : '> COPY_LINK_FOR_BUYER'}
+                    </span>
+                    {!linkCopied && <span className="cursor-blink">_</span>}
+                  </button>
+
+                  <button
+                    className="brutalist-btn new-deal-btn"
+                    onClick={() => {
+                      setDealSuccess(null);
+                      setResult(null);
+                      setDescription('');
+                      setBuyerWallet('');
+                    }}
+                  >
+                    <span className="btn-text">{'>'} CREATE_ANOTHER_DEAL</span>
                   </button>
                 </div>
               )}

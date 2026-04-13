@@ -475,3 +475,92 @@
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ── Deal Success State ────────────────────────── */
+
+.deal-success {
+  text-align: center;
+}
+
+.success-glow {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 25px;
+}
+
+.glow-ring {
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--accent-color, #00ff66);
+  border-radius: 50%;
+  animation: glowPulse 2s ease-in-out infinite;
+  box-shadow: 0 0 20px rgba(0, 255, 102, 0.4);
+}
+
+.glow-icon {
+  font-size: 2rem;
+  font-weight: 900;
+  color: var(--accent-color, #00ff66);
+  text-shadow: 0 0 20px rgba(0, 255, 102, 0.6);
+}
+
+@keyframes glowPulse {
+  0%, 100% { transform: scale(1); opacity: 1; box-shadow: 0 0 20px rgba(0,255,102,0.4); }
+  50%      { transform: scale(1.15); opacity: 0.7; box-shadow: 0 0 40px rgba(0,255,102,0.6); }
+}
+
+.success-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--accent-color, #00ff66);
+  margin: 0 0 25px 0;
+  text-shadow: 0 0 10px rgba(0, 255, 102, 0.3);
+}
+
+.tx-hash {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.6);
+  word-break: break-all;
+}
+
+.buyer-link-section {
+  background: rgba(0, 255, 102, 0.03);
+  border-color: rgba(0, 255, 102, 0.2);
+}
+
+.link-value {
+  color: var(--accent-color, #00ff66);
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+
+.copy-btn {
+  width: 100%;
+  margin-top: 15px;
+  border-color: var(--accent-color, #00ff66);
+  color: var(--accent-color, #00ff66);
+  font-weight: 700;
+}
+
+.copy-btn:hover {
+  background: rgba(0, 255, 102, 0.15);
+}
+
+.new-deal-btn {
+  width: 100%;
+  margin-top: 10px;
+  border-color: var(--border-color, rgba(255,255,255,0.2));
+  color: rgba(255,255,255,0.5);
+}
+
+.new-deal-btn:hover {
+  color: var(--fg-color, #e0e0e0);
+  border-color: rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.03);
+}
+
