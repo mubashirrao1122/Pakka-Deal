@@ -1,0 +1,296 @@
+import Anthropic from '@anthropic-ai/sdk';
+import {
+  AICollateralRequest,
+  AICollateralResult,
+  AIFraudRequest,
+  AIFraudResult,
+  AITemplateRequest,
+  AITemplateResult,
+  AIRiskSummaryRequest,
+  AIRiskSummaryResult,
+} from '../types';
+
+const client = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+});
+
+const MODEL = 'claude-sonnet-4-20250514';
+
+function safeParseJSON<T>(text: string): T {
+  // Strip markdown code blocks if present
+  const cleaned = text
+    .replace(/```json\n?/g, '')
+    .replace(/```\n?/g, '')
+    .trim();
+  return JSON.parse(cleaned) as T;
+}
+
+export const aiEngineService = {
+
+  // ─────────────────────────────────────────────
+  // FUNCTION 1: Dynamic Collateral Calculator
+  // ─────────────────────────────────────────────
+  async calculateCollateral(req: AICollateralRequest): Promise<AICollateralResult> {
+    const response = await client.messages.create({
+      model: MODEL,
+      max_tokens: 256,
+      messages: [
+        {
+          role: 'user',
+          content: `You are a risk engine for Pakka Deal — a Pakistani 
+blockchain escrow platform. Calculate the correct collateral 
+percentage for this deal.
+
+Deal type: ${req.dealType}
+Deal amount: ${req.amountPkr.toLocaleString()} PKR
+Buyer Pakka Score: ${req.buyerScore} / 1000
+Seller Pakka Score: ${req.sellerScore} / 1000
+
+Rules to follow:
+- Base collateral: 20%
+- If buyer score >= 851 (Pakka Verified): reduce by 12%
+- If buyer score >= 601 (Trusted): reduce by 8%
+- If buyer score >= 301 (Verified): reduce by 4%
+- If buyer score < 300 (New User): minimum 30%
+- PSL_FRANCHISE deals: add 10% to base
+- PROPERTY deals above 1 crore PKR: add 5% to base
+- Amounts above 50 lakh PKR: add 3% risk premium
+- Final range: minimum 8%, maximum 40%
+- fraudFlag = true only if amount is suspiciously low 
+  for the deal type (more than 70% below typical market)
+
+Return ONLY valid JSON with no extra text:
+{
+  "collateralPercent": 18,
+  "riskLevel": "LOW",
+  "reason": "Brief one sentence explanation",
+  "fraudFlag": false
+}
+
+riskLevel must be one of: LOW, MEDIUM, HIGH, CRITICAL`,
+        },
+      ],
+    });
+
+    const text = (response.content[0] as any).text;
+    return safeParseJSON<AICollateralResult>(text);
+  },
+
+  // ─────────────────────────────────────────────
+  // FUNCTION 2: Fraud and Scam Detection
+  // ─────────────────────────────────────────────
+  async detectFraud(req: AIFraudRequest): Promise<AIFraudResult> {
+    const marketContext = `
+Pakistani market price context (approximate ranges in PKR):
+- Honda Civic 2021-2023: 38L - 50L
+- Toyota Corolla 2021-2023: 38L - 52L  
+- Suzuki Alto 2021-2023: 18L - 28L
+- Honda City 2021-2023: 32L - 44L
+- DHA Lahore 10 Marla plot: 1.5Cr - 3Cr
+- Gulberg Lahore 5 Marla: 80L - 1.5Cr
+- Karachi Defence bungalow: 3Cr - 10Cr
+- iPhone 15 Pro Max: 3.5L - 4.5L
+- Samsung Galaxy S24: 2.5L - 3.5L`;
+
+    const response = await client.messages.create({
+      model: MODEL,
+      max_tokens: 350,
+      messages: [
+        {
+          role: 'user',
+          content: `You are a fraud detection engine for Pakka Deal — 
+a Pakistani escrow platform. Analyze this deal for fraud risk.
+
+Deal description: ${req.description}
+Deal type: ${req.dealType}
+Listed price: ${req.amountPkr.toLocaleString()} PKR
+Seller Pakka Score: ${req.sellerScore} / 1000
+
+${marketContext}
+
+Analyze and return ONLY valid JSON with no extra text:
+{
+  "riskLevel": "LOW",
+  "flags": ["list of specific red flags found, empty if none"],
+  "recommendation": "One actionable sentence for the buyer"
+}
+
+riskLevel rules:
+- LOW: Price within 30% of market, seller has decent score
+- MEDIUM: Price 30-60% below market OR seller score under 300
+- HIGH: Price over 60% below market OR multiple red flags
+- CRITICAL: Price over 80% below market — very likely scam`,
+        },
+      ],
+    });
+
+    const text = (response.content[0] as any).text;
+    return safeParseJSON<AIFraudResult>(text);
+  },
+
+  // ─────────────────────────────────────────────
+  // FUNCTION 3: Deal Template Generator
+  // ─────────────────────────────────────────────
+  async generateTemplate(req: AITemplateRequest): Promise<AITemplateResult> {
+    const response = await client.messages.create({
+      model: MODEL,
+      max_tokens: 500,
+      messages: [
+        {
+          role: 'user',
+          content: `You are a deal assistant for Pakka Deal — 
+a Pakistani escrow platform. Extract deal structure from 
+this description. The user may write in English, Urdu, 
+or Roman Urdu (Urdu written in English letters).
+
+User description: "${req.description}"
+
+Available deal types: 
+CAR, PROPERTY, FREELANCE, PSL_FRANCHISE, PSL_PLAYER, 
+MARKETPLACE, CUSTOM
+
+Milestone rules:
+- CAR / MARKETPLACE: 1 milestone (full payment on delivery)
+- PROPERTY: 3 milestones (advance 10-20%, transfer 30-50%, handover remaining)
+- FREELANCE: 2-3 milestones (deposit, progress, final delivery)
+- PSL_FRANCHISE: 3 milestones (bid 30%, PCB approval 40%, season start 30%)
+- CUSTOM: use your judgment based on description
+
+Grace period rules:
+- CAR / MARKETPLACE: 48 hours
+- FREELANCE: 72 hours per milestone
+- PROPERTY: 168 hours (7 days) per milestone
+- PSL_FRANCHISE: 720 hours (30 days) per milestone
+
+Return ONLY valid JSON with no extra text:
+{
+  "dealType": "PROPERTY",
+  "title": "Short descriptive title in English (max 60 chars)",
+  "milestones": [
+    { "label": "Advance Payment", "percent": 10 },
+    { "label": "Registry Transfer", "percent": 40 },
+    { "label": "Physical Handover", "percent": 50 }
+  ],
+  "gracePeriodHours": 168,
+  "suggestedCollateralPct": 22,
+  "detectedLanguage": "roman_urdu"
+}
+
+detectedLanguage: "english", "urdu", or "roman_urdu"
+Milestones must sum to exactly 100 percent.`,
+        },
+      ],
+    });
+
+    const text = (response.content[0] as any).text;
+    const result = safeParseJSON<AITemplateResult>(text);
+
+    // Validate milestones sum to 100
+    const sum = result.milestones.reduce((acc, m) => acc + m.percent, 0);
+    if (Math.abs(sum - 100) > 1) {
+      throw new Error(`AI returned milestones summing to ${sum}%, not 100%`);
+    }
+
+    return result;
+  },
+
+  // ─────────────────────────────────────────────
+  // FUNCTION 4: Counterparty Risk Summary
+  // ─────────────────────────────────────────────
+  async generateRiskSummary(req: AIRiskSummaryRequest): Promise<AIRiskSummaryResult> {
+    const response = await client.messages.create({
+      model: MODEL,
+      max_tokens: 400,
+      messages: [
+        {
+          role: 'user',
+          content: `You are a trust advisor for Pakka Deal — 
+a Pakistani escrow platform. Write a plain-language risk 
+summary for a potential buyer considering a deal with 
+this counterparty.
+
+Write like a trusted Pakistani friend giving honest advice.
+Use simple language. No jargon.
+
+Counterparty data:
+- Pakka Score: ${req.pakkaScore} / 1000
+- Deals completed: ${req.dealsCompleted}
+- Deals defaulted: ${req.dealsDefaulted}
+- Average deal value: ₨${req.avgDealValuePkr.toLocaleString()}
+- Deal being considered: ${req.dealContext}
+
+Return ONLY valid JSON with no extra text:
+{
+  "riskLevel": "LOW",
+  "summary": "2-3 sentence plain language summary about this counterparty",
+  "greenFlags": ["positive thing 1", "positive thing 2"],
+  "yellowFlags": ["concern 1 if any"],
+  "recommendation": "One clear actionable sentence for the buyer"
+}
+
+riskLevel rules:
+- LOW: score > 600, default rate < 10%, 5+ deals
+- MEDIUM: score 300-600 OR some defaults OR few deals  
+- HIGH: score < 300 OR default rate > 20%
+- CRITICAL: more defaults than completions`,
+        },
+      ],
+    });
+
+    const text = (response.content[0] as any).text;
+    return safeParseJSON<AIRiskSummaryResult>(text);
+  },
+
+  // ─────────────────────────────────────────────
+  // FUNCTION 5: Dispute Analysis
+  // ─────────────────────────────────────────────
+  async analyzeDispute(params: {
+    dealType:       string;
+    dealTitle:      string;
+    amountPkr:      number;
+    buyerClaim:     string;
+    sellerClaim:    string;
+    buyerEvidence:  string; // IPFS CID
+    sellerEvidence: string; // IPFS CID
+  }): Promise<{
+    recommendation: string;
+    buyerStrength:  string;
+    sellerStrength: string;
+    suggestedVerdict: string;
+    reasoning:      string;
+  }> {
+    const response = await client.messages.create({
+      model: MODEL,
+      max_tokens: 500,
+      messages: [
+        {
+          role: 'user',
+          content: `You are an impartial dispute analyst for Pakka Deal — 
+a Pakistani escrow platform. Analyze this dispute and 
+provide guidance to arbitrators.
+
+Deal: ${params.dealTitle} (${params.dealType})
+Amount: ₨${params.amountPkr.toLocaleString()}
+
+Buyer claims: ${params.buyerClaim}
+Buyer evidence IPFS: ${params.buyerEvidence || 'Not submitted'}
+
+Seller claims: ${params.sellerClaim}  
+Seller evidence IPFS: ${params.sellerEvidence || 'Not submitted'}
+
+Return ONLY valid JSON with no extra text:
+{
+  "recommendation": "What arbitrators should focus on",
+  "buyerStrength": "STRONG / MODERATE / WEAK",
+  "sellerStrength": "STRONG / MODERATE / WEAK",
+  "suggestedVerdict": "BUYER / SELLER / SPLIT",
+  "reasoning": "2-3 sentence impartial analysis"
+}`,
+        },
+      ],
+    });
+
+    const text = (response.content[0] as any).text;
+    return safeParseJSON<any>(text);
+  },
+};
