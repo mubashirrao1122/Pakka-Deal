@@ -12,6 +12,7 @@ interface DealDetails {
     buyerWallet: string;
     currentState: string;
     milestoneCount: number;
+    imagePreviews?: string[];
   } | null;
   aiRisk: any;
 }
@@ -257,6 +258,21 @@ export default function PayDeal({ dealId }: PayDealProps) {
                   <span>◈</span> AI Risk Monitored
                 </div>
               </div>
+
+              {/* ── Item Images Gallery ── */}
+              {cached?.imagePreviews && cached.imagePreviews.length > 0 && (
+                <div className="pay-images-section">
+                  <div className="pay-images-header">ITEM_IMAGES ({cached.imagePreviews.length})</div>
+                  <div className="pay-images-grid">
+                    {cached.imagePreviews.map((src, i) => (
+                      <div key={i} className="pay-image-item">
+                        <img src={src} alt={`Item ${i + 1}`} className="pay-image" />
+                        <span className="pay-image-label">IMG_{String(i + 1).padStart(2, '0')}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </section>

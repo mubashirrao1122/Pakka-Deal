@@ -430,3 +430,59 @@
   0%, 100% { opacity: 0.3; }
   50% { opacity: 1; }
 }
+
+/* ── Item Images (Buyer View) ──────────────────── */
+
+.pay-images-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color, rgba(255,255,255,0.1));
+}
+
+.pay-images-header {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 12px;
+}
+
+.pay-images-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.pay-image-item {
+  border: 1px solid var(--border-color, rgba(255,255,255,0.15));
+  background: rgba(0,0,0,0.4);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.pay-image-item:hover {
+  border-color: var(--accent-color, #00ff66);
+}
+
+.pay-image {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+  filter: grayscale(40%) contrast(1.05);
+  transition: filter 0.3s;
+}
+
+.pay-image-item:hover .pay-image {
+  filter: grayscale(0%) contrast(1);
+}
+
+.pay-image-label {
+  display: block;
+  text-align: center;
+  font-size: 0.55rem;
+  letter-spacing: 1px;
+  color: rgba(255,255,255,0.25);
+  padding: 4px 0;
+  background: rgba(0,0,0,0.6);
+}

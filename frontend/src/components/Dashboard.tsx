@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import './Dashboard.css';
 
@@ -33,9 +33,34 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
   const { getAccessToken, user, logout } = usePrivy();
 
   const [description, setDescription] = useState('');
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AITemplateResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    const remaining = 3 - imagePreviews.length;
+    const toProcess = Array.from(files).slice(0, remaining);
+    toProcess.forEach((file) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreviews((prev) => {
+          if (prev.length >= 3) return prev;
+          return [...prev, reader.result as string];
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+    // Reset input so same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeImage = (index: number) => {
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+  };
 
   // Deal creation state
   const [creating, setCreating] = useState(false);
@@ -125,6 +150,7 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
           title: result.title,
           amountPkr: 0,
           buyerWallet: '0x0000000000000000000000000000000000000000',
+          imagePreviews,
         }),
       });
 
@@ -295,6 +321,48 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                 />
+              </div>
+
+              <div className="input-group">
+                <label className="input-label">ITEM_IMAGES: (Max 3)</label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageUpload}
+                  style={{ display: 'none' }}
+                  id="image-upload"
+                />
+                <button
+                  className="brutalist-btn upload-btn"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={imagePreviews.length >= 3}
+                >
+                  <span className="btn-text">
+                    {imagePreviews.length >= 3
+                      ? '[ MAX_IMAGES_REACHED ]'
+                      : `> UPLOAD_ITEM_IMAGES (${imagePreviews.length}/3)`}
+                  </span>
+                </button>
+
+                {imagePreviews.length > 0 && (
+                  <div className="image-preview-grid">
+                    {imagePreviews.map((src, i) => (
+                      <div key={i} className="image-preview-item">
+                        <img src={src} alt={`Item ${i + 1}`} className="preview-img" />
+                        <button
+                          className="preview-remove"
+                          onClick={() => removeImage(i)}
+                          title="Remove image"
+                        >
+                          ✕
+                        </button>
+                        <span className="preview-label">IMG_{String(i + 1).padStart(2, '0')}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
 
@@ -561,6 +629,7 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
                       setDealSuccess(null);
                       setResult(null);
                       setDescription('');
+                      setImagePreviews([]);
                     }}
                   >
                     <span className="btn-text">{'>'} CREATE_ANOTHER_DEAL</span>
