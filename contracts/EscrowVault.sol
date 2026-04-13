@@ -1,326 +1,369 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.20;
 
-// Note: If using OpenZeppelin v5.x, the import path for ReentrancyGuard is "@openzeppelin/contracts/utils/ReentrancyGuard.sol"
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/metatx/ERC2771Context.sol";
 
-// --- Required Interfaces --- //
 interface IDIDRegistry {
-    function getPakkaScore(address _user) external view returns (uint256);
-    function updatePakkaScore(address _user, uint256 _newScore) external;
-    function incrementDealsCompleted(address _user) external;
-    function incrementDealsDefaulted(address _user) external;
-    function incrementDealsDisputed(address _user) external;
+    function incrementScore(address user) external;
+    function decrementScore(address user) external;
+    function isVerified(address user) external view returns (bool);
 }
 
-interface IArbitratorRegistry {
-    enum Vote { NONE, BUYER, SELLER, SPLIT }
-    function countVotesAndResolve(uint256 dealId) external returns (Vote);
-}
+contract EscrowVault is ReentrancyGuard, Ownable, ERC2771Context {
 
-interface IAIAgentInterface {
-    function requestCollateral(uint256 dealId, uint256 amount, uint256 buyerScore) external;
-    function dealCollateralPercentage(uint256 dealId) external view returns (uint256);
-}
-
-/**
- * @title EscrowVault
- * @author Pakka Deal
- * @notice Highly secure singleton escrow contract handling all deals securely without deploying 
- *         expensive sub-contracts per deal. 
- * @dev Defends against reentrancy and enforces state security. Integrates ERC2771 for gasless 
- *      meta-transactions via a trusted forwarder (Biconomy, OpenGSN, etc.).
- */
-contract EscrowVault is ERC2771Context, ReentrancyGuard {
-    // --- Custom Errors --- //
-    error ArrayMismatch();
-    error Unauthorized();
-    error InvalidState();
-    error IncorrectValue();
-    error AlreadyFunded();
-    error BuyerNotFunded();
-    error AllMilestonesCompleted();
-    error TransferFailed();
-    error VerdictNotReached();
-
-    // --- Enums --- //
-    enum DealType { CAR, PROPERTY, FREELANCE, PSL_FRANCHISE, PSL_PLAYER, MARKETPLACE, CUSTOM }
+    enum DealType  { CAR, PROPERTY, FREELANCE, PSL_FRANCHISE, PSL_PLAYER, MARKETPLACE, CUSTOM }
     enum DealState { PENDING, LOCKED, COMPLETED, DEFAULTED, DISPUTED, CLOSED }
+    enum Vote      { NONE, BUYER, SELLER, SPLIT }
 
-    // --- Structs --- //
+    struct Milestone {
+        string  label;
+        uint256 amount;
+        bool    completed;
+    }
+
     struct Deal {
-        DealType dealType;
+        uint256   id;
+        DealType  dealType;
         DealState state;
         address payable buyer;
         address payable seller;
-        uint256 totalAmount;
-        uint256 sellerBond;
-        uint256 milestoneCount;
-        uint256 currentMilestone;
-        uint256[] milestoneAmounts;
-        uint256 gracePeriodEnd;
-        bool disputed;
-        bool buyerFunded;
-        bool sellerFunded;
-        string buyerEvidence;
-        string sellerEvidence;
+        uint256  totalAmount;
+        uint256  sellerBond;
+        uint256  gracePeriodEnd;
+        bool     disputed;
+        string   buyerEvidence;
+        string   sellerEvidence;
+        uint8    currentMilestone;
+        uint8    milestoneCount;
+        uint256  createdAt;
     }
 
-    // --- State Variables --- //
-    IDIDRegistry public didRegistry;
-    IArbitratorRegistry public arbitratorRegistry;
-    IAIAgentInterface public aiAgentInterface;
+    mapping(uint256 => Deal)           public deals;
+    mapping(uint256 => Milestone[])    public milestones;
+    mapping(uint256 => address[3])     public arbitrators;
+    mapping(uint256 => Vote[3])        public votes;
+    mapping(uint256 => uint8)          public voteCount;
 
     uint256 public dealCounter;
-    mapping(uint256 => Deal) public deals;
+    address public didRegistry;
 
-    // --- Events --- //
-    event DealCreated(uint256 indexed dealId, address indexed buyer, address indexed seller, uint256 totalAmount);
-    event DealStateChanged(uint256 indexed dealId, DealState newState);
-    event BuyerFundsLocked(uint256 indexed dealId, uint256 amount);
-    event SellerBondLocked(uint256 indexed dealId, uint256 amount);
-    event MilestoneConfirmed(uint256 indexed dealId, uint256 milestoneIndex, uint256 amount);
-    event DisputeRaised(uint256 indexed dealId, address raisedBy);
-    event EvidenceSubmitted(uint256 indexed dealId, address submitter, string cid);
-    event DealResolved(uint256 indexed dealId, IArbitratorRegistry.Vote verdict);
+    event DealCreated(uint256 indexed id, address indexed buyer, address indexed seller, DealType dealType);
+    event BuyerFundsLocked(uint256 indexed id, uint256 amount);
+    event SellerBondLocked(uint256 indexed id, uint256 bond);
+    event MilestoneReleased(uint256 indexed id, uint8 milestone, uint256 amount);
+    event DealCompleted(uint256 indexed id);
+    event DealDefaulted(uint256 indexed id, address defaulter);
+    event DisputeRaised(uint256 indexed id, address raisedBy);
+    event EvidenceSubmitted(uint256 indexed id, address party, string ipfsCID);
+    event VoteCast(uint256 indexed id, address arbitrator, Vote vote);
+    event DisputeResolved(uint256 indexed id, string outcome);
 
-    // --- Constructor --- //
-    constructor(
-        address trustedForwarder,
-        address _didRegistry,
-        address _arbitratorRegistry,
-        address _aiAgentInterface
-    ) ERC2771Context(trustedForwarder) {
-        didRegistry = IDIDRegistry(_didRegistry);
-        arbitratorRegistry = IArbitratorRegistry(_arbitratorRegistry);
-        aiAgentInterface = IAIAgentInterface(_aiAgentInterface);
+    constructor(address trustedForwarder, address _didRegistry)
+        ERC2771Context(trustedForwarder)
+        Ownable(msg.sender)
+    {
+        didRegistry = _didRegistry;
     }
 
-    // --- Core Methods --- //
+    function _msgSender() internal view override(Context, ERC2771Context) returns (address) {
+        return ERC2771Context._msgSender();
+    }
 
-    /**
-     * @notice Creates a new deal directly mapping to a storage slot (Singleton methodology).
-     * @param _dealType Enum representing the category of the deal.
-     * @param _seller The seller's payable address.
-     * @param _totalAmount The total amount configured for the core transaction.
-     * @param _milestoneAmounts An exact array defining how chunks are paid per milestone.
-     */
+    function _msgData() internal view override(Context, ERC2771Context) returns (bytes calldata) {
+        return ERC2771Context._msgData();
+    }
+
+    function _contextSuffixLength() internal view override(Context, ERC2771Context) returns (uint256) {
+        return ERC2771Context._contextSuffixLength();
+    }
+
+    // ── Create Deal ──
     function createDeal(
-        DealType _dealType,
         address payable _seller,
-        uint256 _totalAmount,
-        uint256[] memory _milestoneAmounts
-    ) external returns (uint256) {
-        // Enforce strong arithmetic correlation
+        DealType        _dealType,
+        uint256         _totalAmount,
+        uint256         _collateralPercent,
+        string[] calldata _milestoneLabels,
+        uint256[] calldata _milestoneAmounts
+    ) external returns (uint256 dealId) {
+        require(_seller != address(0), "Invalid seller");
+        require(_seller != _msgSender(), "Buyer and seller cannot be same");
+        require(_totalAmount > 0, "Amount must be > 0");
+        require(_collateralPercent >= 5 && _collateralPercent <= 50, "Collateral 5-50%");
+        require(_milestoneLabels.length == _milestoneAmounts.length, "Milestone mismatch");
+        require(_milestoneLabels.length >= 1 && _milestoneLabels.length <= 4, "1-4 milestones only");
+
         uint256 sum = 0;
         for (uint256 i = 0; i < _milestoneAmounts.length; i++) {
+            require(_milestoneAmounts[i] > 0, "Milestone amount must be > 0");
             sum += _milestoneAmounts[i];
         }
-        if (sum != _totalAmount) revert ArrayMismatch();
+        require(sum == _totalAmount, "Milestones must sum to totalAmount");
 
-        dealCounter++;
-        uint256 newDealId = dealCounter;
+        dealId = dealCounter++;
 
-        Deal storage deal = deals[newDealId];
-        deal.dealType = _dealType;
-        deal.state = DealState.PENDING;
-        deal.buyer = payable(_msgSender()); // Use _msgSender() for meta-tx compatibility
-        deal.seller = _seller;
-        deal.totalAmount = _totalAmount;
-        deal.milestoneCount = _milestoneAmounts.length;
-        deal.milestoneAmounts = _milestoneAmounts;
-        
-        emit DealCreated(newDealId, _msgSender(), _seller, _totalAmount);
-        return newDealId;
+        deals[dealId] = Deal({
+            id:               dealId,
+            dealType:         _dealType,
+            state:            DealState.PENDING,
+            buyer:            payable(_msgSender()),
+            seller:           _seller,
+            totalAmount:      _totalAmount,
+            sellerBond:       (_totalAmount * _collateralPercent) / 100,
+            gracePeriodEnd:   0,
+            disputed:         false,
+            buyerEvidence:    "",
+            sellerEvidence:   "",
+            currentMilestone: 0,
+            milestoneCount:   uint8(_milestoneLabels.length),
+            createdAt:        block.timestamp
+        });
+
+        for (uint256 i = 0; i < _milestoneLabels.length; i++) {
+            milestones[dealId].push(Milestone({
+                label:     _milestoneLabels[i],
+                amount:    _milestoneAmounts[i],
+                completed: false
+            }));
+        }
+
+        emit DealCreated(dealId, _msgSender(), _seller, _dealType);
     }
 
-    /**
-     * @notice Allows the Buyer to lock their 100% committed funds into the vault.
-     * @param dealId The unique identifier of the target deal.
-     */
+    // ── Lock Buyer Funds ──
     function lockBuyerFunds(uint256 dealId) external payable nonReentrant {
         Deal storage deal = deals[dealId];
-        if (deal.state != DealState.PENDING) revert InvalidState();
-        if (_msgSender() != deal.buyer) revert Unauthorized();
-        if (msg.value != deal.totalAmount) revert IncorrectValue();
-        if (deal.buyerFunded) revert AlreadyFunded();
+        require(deal.state == DealState.PENDING, "Deal not pending");
+        require(_msgSender() == deal.buyer, "Only buyer can lock funds");
+        require(msg.value == deal.totalAmount, "Must send exact deal amount");
+        require(deal.gracePeriodEnd == 0, "Already locked by buyer");
 
-        deal.buyerFunded = true;
+        deal.gracePeriodEnd = 1; // mark buyer has locked, use 1 as flag
+
         emit BuyerFundsLocked(dealId, msg.value);
     }
 
-    /**
-     * @notice The Seller locks their 20% security bond to initiate and transition the deal state to LOCKED.
-     * @param dealId The unique identifier of the target deal.
-     */
+    // ── Lock Seller Bond ──
     function lockSellerBond(uint256 dealId) external payable nonReentrant {
         Deal storage deal = deals[dealId];
-        if (deal.state != DealState.PENDING) revert InvalidState();
-        if (!deal.buyerFunded) revert BuyerNotFunded();
-        if (_msgSender() != deal.seller) revert Unauthorized();
-        if (deal.sellerFunded) revert AlreadyFunded();
+        require(deal.state == DealState.PENDING, "Deal not pending");
+        require(_msgSender() == deal.seller, "Only seller can lock bond");
+        require(deal.gracePeriodEnd == 1, "Buyer must lock first");
+        require(msg.value == deal.sellerBond, "Must send exact bond amount");
 
-        // 20% Hardcoded bond for extreme hackathon safety
-        // Off-chain AI can theoretically inform variations, but we enforce fixed baseline parameters here
-        uint256 requiredBond = (deal.totalAmount * 20) / 100;
-        if (msg.value != requiredBond) revert IncorrectValue();
+        deal.state          = DealState.LOCKED;
+        deal.gracePeriodEnd = block.timestamp + 72 hours;
 
-        deal.sellerFunded = true;
-        deal.sellerBond = msg.value;
-        deal.state = DealState.LOCKED;
-        
         emit SellerBondLocked(dealId, msg.value);
-        emit DealStateChanged(dealId, DealState.LOCKED);
     }
 
-    /**
-     * @notice Progresses milestones, paying out fractions to the Seller upon successful mutual progression.
-     * @param dealId The unique identifier of the target deal.
-     */
+    // ── Confirm Milestone ──
     function confirmMilestone(uint256 dealId) external nonReentrant {
         Deal storage deal = deals[dealId];
-        if (deal.state != DealState.LOCKED) revert InvalidState();
-        if (_msgSender() != deal.buyer) revert Unauthorized();
-        if (deal.currentMilestone >= deal.milestoneCount) revert AllMilestonesCompleted();
+        require(_msgSender() == deal.buyer, "Only buyer can confirm");
+        require(!deal.disputed, "Cannot confirm during dispute");
+        require(deal.state == DealState.LOCKED, "Deal must be locked");
 
-        uint256 amountToRelease = deal.milestoneAmounts[deal.currentMilestone];
+        uint8 current = deal.currentMilestone;
+        require(current < deal.milestoneCount, "All milestones done");
+
+        Milestone storage m = milestones[dealId][current];
+        require(!m.completed, "Milestone already completed");
+
+        m.completed = true;
         deal.currentMilestone++;
 
+        // Reset grace period for next milestone
+        deal.gracePeriodEnd = block.timestamp + 72 hours;
+
+        // Transfer this milestone amount to seller
+        (bool success, ) = deal.seller.call{value: m.amount}("");
+        require(success, "Transfer to seller failed");
+
+        emit MilestoneReleased(dealId, current, m.amount);
+
+        // If all milestones done, close deal
         if (deal.currentMilestone == deal.milestoneCount) {
             deal.state = DealState.COMPLETED;
-            uint256 totalToSend = amountToRelease + deal.sellerBond;
-            
-            // Interaction with DIDRegistry natively to boost reputation of reliable actors
-            didRegistry.incrementDealsCompleted(deal.buyer);
-            didRegistry.incrementDealsCompleted(deal.seller);
 
-            (bool success, ) = deal.seller.call{value: totalToSend}("");
-            if (!success) revert TransferFailed();
-            
-            emit DealStateChanged(dealId, DealState.COMPLETED);
-        } else {
-            (bool success, ) = deal.seller.call{value: amountToRelease}("");
-            if (!success) revert TransferFailed();
+            // Return seller bond
+            (bool bondReturn, ) = deal.seller.call{value: deal.sellerBond}("");
+            require(bondReturn, "Bond return failed");
+
+            emit DealCompleted(dealId);
+
+            // Update Pakka Scores
+            try IDIDRegistry(didRegistry).incrementScore(deal.buyer) {} catch {}
+            try IDIDRegistry(didRegistry).incrementScore(deal.seller) {} catch {}
         }
-        
-        emit MilestoneConfirmed(dealId, deal.currentMilestone - 1, amountToRelease);
     }
 
-    /**
-     * @notice Raises a conflict resulting in funds freezing until Arbitrators step in.
-     * @param dealId The unique identifier of the target deal.
-     */
-    function raiseDispute(uint256 dealId) external {
+    // ── Apply Penalty (called after grace period expires) ──
+    function applyPenalty(uint256 dealId) external nonReentrant {
         Deal storage deal = deals[dealId];
-        if (deal.state != DealState.LOCKED) revert InvalidState();
-        if (_msgSender() != deal.buyer && _msgSender() != deal.seller) revert Unauthorized();
+        require(deal.state == DealState.LOCKED, "Deal must be locked");
+        require(!deal.disputed, "Cannot penalize during dispute");
+        require(block.timestamp > deal.gracePeriodEnd, "Grace period not expired");
+
+        deal.state = DealState.DEFAULTED;
+
+        // Send everything to seller (buyer's amount + seller's bond back)
+        uint256 remaining = deal.totalAmount - _getMilestonesReleasedAmount(dealId);
+        uint256 total     = remaining + deal.sellerBond;
+
+        (bool success, ) = deal.seller.call{value: total}("");
+        require(success, "Penalty transfer failed");
+
+        emit DealDefaulted(dealId, deal.buyer);
+
+        try IDIDRegistry(didRegistry).decrementScore(deal.buyer) {} catch {}
+    }
+
+    // ── Raise Dispute ──
+    function raiseDispute(
+        uint256 dealId,
+        address arb1,
+        address arb2,
+        address arb3
+    ) external {
+        Deal storage deal = deals[dealId];
+        require(
+            _msgSender() == deal.buyer || _msgSender() == deal.seller,
+            "Only deal parties can dispute"
+        );
+        require(!deal.disputed, "Already disputed");
+        require(deal.state == DealState.LOCKED, "Deal must be locked");
+        require(arb1 != address(0) && arb2 != address(0) && arb3 != address(0), "Invalid arbitrators");
 
         deal.disputed = true;
-        deal.state = DealState.DISPUTED;
+        deal.state    = DealState.DISPUTED;
+
+        arbitrators[dealId][0] = arb1;
+        arbitrators[dealId][1] = arb2;
+        arbitrators[dealId][2] = arb3;
 
         emit DisputeRaised(dealId, _msgSender());
-        emit DealStateChanged(dealId, DealState.DISPUTED);
     }
 
-    /**
-     * @notice Safely stores verifiable credentials or attachments by referencing IPFS CIDs on-chain.
-     * @param dealId The unique identifier of the target deal.
-     * @param cid Formatted IPFS Content Identifier.
-     */
-    function submitEvidence(uint256 dealId, string memory cid) external {
+    // ── Submit Evidence ──
+    function submitEvidence(uint256 dealId, string calldata ipfsCID) external {
         Deal storage deal = deals[dealId];
-        if (deal.state != DealState.DISPUTED) revert InvalidState();
-        
+        require(deal.disputed, "No active dispute");
+        require(bytes(ipfsCID).length > 0, "CID cannot be empty");
+
         if (_msgSender() == deal.buyer) {
-            deal.buyerEvidence = cid;
+            require(bytes(deal.buyerEvidence).length == 0, "Evidence already submitted");
+            deal.buyerEvidence = ipfsCID;
         } else if (_msgSender() == deal.seller) {
-            deal.sellerEvidence = cid;
+            require(bytes(deal.sellerEvidence).length == 0, "Evidence already submitted");
+            deal.sellerEvidence = ipfsCID;
         } else {
-            revert Unauthorized();
+            revert("Not a party to this deal");
         }
 
-        emit EvidenceSubmitted(dealId, _msgSender(), cid);
+        emit EvidenceSubmitted(dealId, _msgSender(), ipfsCID);
     }
 
-    /**
-     * @notice Evaluates Arbitrator Registry responses, processes punitive score deductions, and forces a resolution.
-     * @param dealId The unique identifier of the target deal.
-     */
-    function resolveDispute(uint256 dealId) external nonReentrant {
+    // ── Submit Arbitrator Vote ──
+    function submitVote(uint256 dealId, Vote _vote) external nonReentrant {
+        require(_vote != Vote.NONE, "Cannot vote NONE");
         Deal storage deal = deals[dealId];
-        if (deal.state != DealState.DISPUTED) revert InvalidState();
+        require(deal.disputed, "No active dispute");
 
-        // 1. Interactions -> Check registry dynamically
-        IArbitratorRegistry.Vote verdict = arbitratorRegistry.countVotesAndResolve(dealId);
-        if (verdict == IArbitratorRegistry.Vote.NONE) revert VerdictNotReached();
+        address[3] memory arbs = arbitrators[dealId];
+        uint8 arbIndex = 3; // invalid default
 
-        // Accumulate exactly what remains locked up natively
-        uint256 releasedAmount = 0;
-        for (uint256 i = 0; i < deal.currentMilestone; i++) {
-            releasedAmount += deal.milestoneAmounts[i];
-        }
-        uint256 remainingAmount = deal.totalAmount - releasedAmount;
-        uint256 bondSnapshot = deal.sellerBond;
-
-        // 2. CEI - State Effects
-        deal.sellerBond = 0; 
-        deal.state = DealState.CLOSED;
-
-        didRegistry.incrementDealsDisputed(deal.buyer);
-        didRegistry.incrementDealsDisputed(deal.seller);
-
-        // 3. Extrinsic Interaction Routing based on the Verdict
-        if (verdict == IArbitratorRegistry.Vote.BUYER) {
-            
-            // Penalize the Seller
-            didRegistry.incrementDealsDefaulted(deal.seller);
-            _punishScore(deal.seller, 50);
-
-            // Refund Buyer everything left PLUS construct extreme punitive measures against Seller 
-            // by awarding the Buyer the Seller's 20% collateral bond.
-            uint256 toBuyer = remainingAmount + bondSnapshot;
-            (bool success, ) = deal.buyer.call{value: toBuyer}("");
-            if (!success) revert TransferFailed();
-
-        } else if (verdict == IArbitratorRegistry.Vote.SELLER) {
-            
-            // Penalize the Buyer (Malicious reporting etc.)
-            didRegistry.incrementDealsDefaulted(deal.buyer);
-            _punishScore(deal.buyer, 50);
-
-            // Confiscate remaining Buyer funds and route to the Seller + explicitly return their untouched bond.
-            uint256 toSeller = remainingAmount + bondSnapshot;
-            (bool success, ) = deal.seller.call{value: toSeller}("");
-            if (!success) revert TransferFailed();
-
-        } else if (verdict == IArbitratorRegistry.Vote.SPLIT) {
-            
-            // Neutral resolution scenario
-            bool ok1 = true;
-            bool ok2 = true;
-            if (remainingAmount > 0) {
-                (ok1, ) = deal.buyer.call{value: remainingAmount}("");
+        for (uint8 i = 0; i < 3; i++) {
+            if (arbs[i] == _msgSender()) {
+                arbIndex = i;
+                break;
             }
-            if (bondSnapshot > 0) {
-                (ok2, ) = deal.seller.call{value: bondSnapshot}("");
-            }
-            if (!ok1 || !ok2) revert TransferFailed();
         }
 
-        emit DealResolved(dealId, verdict);
-        emit DealStateChanged(dealId, DealState.CLOSED);
+        require(arbIndex < 3, "Not an assigned arbitrator");
+        require(votes[dealId][arbIndex] == Vote.NONE, "Already voted");
+
+        votes[dealId][arbIndex] = _vote;
+        voteCount[dealId]++;
+
+        emit VoteCast(dealId, _msgSender(), _vote);
+
+        if (voteCount[dealId] == 3) {
+            _resolveDispute(dealId);
+        }
     }
-    
-    /**
-     * @dev Internal helper bridging to the DIDRegistry protecting mathematically against underflow.
-     */
-    function _punishScore(address user, uint256 deduction) internal {
-        uint256 score = didRegistry.getPakkaScore(user);
-        if (score > deduction) {
-            didRegistry.updatePakkaScore(user, score - deduction);
-        } else {
-            didRegistry.updatePakkaScore(user, 0); // Floor it strictly to 0
+
+    // ── Internal: Resolve Dispute ──
+    function _resolveDispute(uint256 dealId) internal {
+        Deal storage deal = deals[dealId];
+
+        Vote[3] memory v = votes[dealId];
+        uint8 buyerVotes;
+        uint8 sellerVotes;
+
+        for (uint8 i = 0; i < 3; i++) {
+            if (v[i] == Vote.BUYER)  buyerVotes++;
+            if (v[i] == Vote.SELLER) sellerVotes++;
         }
+
+        deal.state    = DealState.CLOSED;
+        deal.disputed = false;
+
+        uint256 remaining = deal.totalAmount - _getMilestonesReleasedAmount(dealId);
+
+        if (buyerVotes >= 2) {
+            // Buyer wins: refund + seller bond as compensation
+            (bool r1, ) = deal.buyer.call{value: remaining}("");
+            (bool r2, ) = deal.buyer.call{value: deal.sellerBond}("");
+            require(r1 && r2, "Buyer win transfer failed");
+            emit DisputeResolved(dealId, "BUYER");
+            try IDIDRegistry(didRegistry).decrementScore(deal.seller) {} catch {}
+        } else if (sellerVotes >= 2) {
+            // Seller wins: gets remaining + bond back
+            (bool r1, ) = deal.seller.call{value: remaining}("");
+            (bool r2, ) = deal.seller.call{value: deal.sellerBond}("");
+            require(r1 && r2, "Seller win transfer failed");
+            emit DisputeResolved(dealId, "SELLER");
+            try IDIDRegistry(didRegistry).decrementScore(deal.buyer) {} catch {}
+        } else {
+            // Split
+            uint256 total = remaining + deal.sellerBond;
+            uint256 half  = total / 2;
+            (bool r1, ) = deal.buyer.call{value: half}("");
+            (bool r2, ) = deal.seller.call{value: total - half}("");
+            require(r1 && r2, "Split transfer failed");
+            emit DisputeResolved(dealId, "SPLIT");
+        }
+    }
+
+    // ── Internal Helper ──
+    function _getMilestonesReleasedAmount(uint256 dealId) internal view returns (uint256 released) {
+        Milestone[] storage ms = milestones[dealId];
+        for (uint256 i = 0; i < ms.length; i++) {
+            if (ms[i].completed) released += ms[i].amount;
+        }
+    }
+
+    // ── View Functions ──
+    function getDeal(uint256 dealId) external view returns (Deal memory) {
+        return deals[dealId];
+    }
+
+    function getMilestones(uint256 dealId) external view returns (Milestone[] memory) {
+        return milestones[dealId];
+    }
+
+    function getArbitrators(uint256 dealId) external view returns (address[3] memory) {
+        return arbitrators[dealId];
+    }
+
+    function getVotes(uint256 dealId) external view returns (Vote[3] memory) {
+        return votes[dealId];
+    }
+
+    function totalDeals() external view returns (uint256) {
+        return dealCounter;
     }
 }

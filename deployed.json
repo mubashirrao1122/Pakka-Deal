@@ -1,0 +1,10 @@
+{
+  "network": "wirefluid",
+  "chainId": 92533,
+  "deployer": "0x0fcCf23a31cF7eC253dc4068ba47F21c55681B07",
+  "forwarder": "0xd2ccA5f9ef2865Dd14ec80E1f0535A268D1802Fc",
+  "didRegistry": "0x05ABA72443040EB139B60ac2e2BB537351100cD5",
+  "escrowVault": "0x88F0A0e84a9a6Bcda6e3Aa25Cb1C5ed91A1d4e6D",
+  "aiAgentInterface": "0x6AD56fcd471864a066Aa3BE75d38fC9489F3b607",
+  "deployedAt": "2026-04-13T11:00:34.549Z"
+}

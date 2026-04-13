@@ -1,76 +1,110 @@
 import { ethers } from "hardhat";
+import fs from "fs";
+import path from "path";
 
 async function main() {
-  console.log("Starting deployment to WireFluid Testnet...\n");
-
   const [deployer] = await ethers.getSigners();
-  console.log(`Deploying contracts with the account: ${deployer.address}\n`);
 
-  // 1. Deploy MinimalForwarder
-  console.log("Deploying MinimalForwarder...");
-  // Assumes MinimalForwarder is part of project artifacts.
-  const MinimalForwarder = await ethers.getContractFactory("MinimalForwarder");
-  const forwarder = await MinimalForwarder.deploy();
+  console.log("====================================");
+  console.log("Pakka Deal — Contract Deployment");
+  console.log("====================================");
+  console.log("Deployer:", deployer.address);
+
+  const balance = await ethers.provider.getBalance(deployer.address);
+  console.log("Balance:", ethers.formatEther(balance), "ETH");
+
+  if (balance === 0n) {
+    throw new Error("Deployer wallet has no funds. Get testnet tokens first.");
+  }
+
+  console.log("\n[1/4] Deploying PakkaDealForwarder...");
+  const Forwarder = await ethers.getContractFactory("PakkaDealForwarder");
+  const forwarder = await Forwarder.deploy();
   await forwarder.waitForDeployment();
   const forwarderAddress = await forwarder.getAddress();
-  const forwarderTxHash = forwarder.deploymentTransaction()?.hash;
-  console.log(`MinimalForwarder Deployed!`);
-  console.log(`Address: ${forwarderAddress}`);
-  console.log(`Tx Hash: ${forwarderTxHash}\n`);
+  console.log("    PakkaDealForwarder:", forwarderAddress);
 
-  // 2. Deploy DIDRegistry
-  console.log("Deploying DIDRegistry...");
+  console.log("\n[2/4] Deploying DIDRegistry...");
   const DIDRegistry = await ethers.getContractFactory("DIDRegistry");
   const didRegistry = await DIDRegistry.deploy();
   await didRegistry.waitForDeployment();
   const didRegistryAddress = await didRegistry.getAddress();
-  const didRegistryTxHash = didRegistry.deploymentTransaction()?.hash;
-  console.log(`DIDRegistry Deployed!`);
-  console.log(`Address: ${didRegistryAddress}`);
-  console.log(`Tx Hash: ${didRegistryTxHash}\n`);
+  console.log("    DIDRegistry:", didRegistryAddress);
 
-  // 3. Deploy ArbitratorRegistry
-  console.log("Deploying ArbitratorRegistry...");
-  const ArbitratorRegistry = await ethers.getContractFactory("ArbitratorRegistry");
-  const arbitratorRegistry = await ArbitratorRegistry.deploy();
-  await arbitratorRegistry.waitForDeployment();
-  const arbitratorRegistryAddress = await arbitratorRegistry.getAddress();
-  const arbitratorRegistryTxHash = arbitratorRegistry.deploymentTransaction()?.hash;
-  console.log(`ArbitratorRegistry Deployed!`);
-  console.log(`Address: ${arbitratorRegistryAddress}`);
-  console.log(`Tx Hash: ${arbitratorRegistryTxHash}\n`);
-
-  // 4. Deploy AIAgentInterface
-  console.log("Deploying AIAgentInterface...");
-  const AIAgentInterface = await ethers.getContractFactory("AIAgentInterface");
-  const aiAgentInterface = await AIAgentInterface.deploy();
-  await aiAgentInterface.waitForDeployment();
-  const aiAgentInterfaceAddress = await aiAgentInterface.getAddress();
-  const aiAgentInterfaceTxHash = aiAgentInterface.deploymentTransaction()?.hash;
-  console.log(`AIAgentInterface Deployed!`);
-  console.log(`Address: ${aiAgentInterfaceAddress}`);
-  console.log(`Tx Hash: ${aiAgentInterfaceTxHash}\n`);
-
-  // 5. Deploy EscrowVault
-  console.log("Deploying EscrowVault...");
+  console.log("\n[3/4] Deploying EscrowVault...");
   const EscrowVault = await ethers.getContractFactory("EscrowVault");
-  const escrowVault = await EscrowVault.deploy(
-    forwarderAddress,
-    didRegistryAddress,
-    arbitratorRegistryAddress,
-    aiAgentInterfaceAddress
-  );
+  const escrowVault = await EscrowVault.deploy(forwarderAddress, didRegistryAddress);
   await escrowVault.waitForDeployment();
   const escrowVaultAddress = await escrowVault.getAddress();
-  const escrowVaultTxHash = escrowVault.deploymentTransaction()?.hash;
-  console.log(`EscrowVault Deployed!`);
-  console.log(`Address: ${escrowVaultAddress}`);
-  console.log(`Tx Hash: ${escrowVaultTxHash}\n`);
+  console.log("    EscrowVault:", escrowVaultAddress);
 
-  console.log("All Pakka Deal contracts have been deployed successfully to the WireFluid Testnet!");
+  console.log("\n[4/4] Deploying AIAgentInterface...");
+  const AIAgent = await ethers.getContractFactory("AIAgentInterface");
+  const aiAgent = await AIAgent.deploy();
+  await aiAgent.waitForDeployment();
+  const aiAgentAddress = await aiAgent.getAddress();
+  console.log("    AIAgentInterface:", aiAgentAddress);
+
+  console.log("\n--- Linking contracts ---");
+
+  // Link DIDRegistry to EscrowVault
+  const linkTx = await didRegistry.setEscrowVault(escrowVaultAddress);
+  await linkTx.wait();
+  console.log("    DIDRegistry linked to EscrowVault ✓");
+
+  // Set deployer as AI relayer (team will update later)
+  const relayerTx = await aiAgent.setAIRelayer(deployer.address);
+  await relayerTx.wait();
+  console.log("    AI relayer set to deployer ✓");
+
+  // Save all addresses
+  const addresses = {
+    network:          "wirefluid",
+    chainId:          Number((await ethers.provider.getNetwork()).chainId),
+    deployer:         deployer.address,
+    forwarder:        forwarderAddress,
+    didRegistry:      didRegistryAddress,
+    escrowVault:      escrowVaultAddress,
+    aiAgentInterface: aiAgentAddress,
+    deployedAt:       new Date().toISOString()
+  };
+
+  // Save to root of project
+  const outputPath = path.join(__dirname, "../deployed.json");
+  fs.writeFileSync(outputPath, JSON.stringify(addresses, null, 2));
+  console.log("\nAddresses saved to deployed.json");
+
+  // Also save ABIs for frontend/backend
+  const abiDir = path.join(__dirname, "../abis");
+  if (!fs.existsSync(abiDir)) fs.mkdirSync(abiDir, { recursive: true });
+
+  const contracts = [
+    { name: "EscrowVault", source: "EscrowVault.sol" },
+    { name: "DIDRegistry", source: "DIDRegistry.sol" },
+    { name: "AIAgentInterface", source: "AIAgentInterface.sol" },
+    { name: "PakkaDealForwarder", source: "TrustedForwarder.sol" }
+  ];
+  for (const { name, source } of contracts) {
+    const artifact = JSON.parse(
+      fs.readFileSync(
+        path.join(__dirname, `../artifacts/contracts/${source}/${name}.json`),
+        "utf-8"
+      )
+    );
+    fs.writeFileSync(
+      path.join(abiDir, `${name}.json`),
+      JSON.stringify(artifact.abi, null, 2)
+    );
+  }
+  console.log("ABIs saved to /abis folder ✓");
+
+  console.log("\n====================================");
+  console.log("DEPLOYMENT COMPLETE");
+  console.log("====================================");
+  console.log(JSON.stringify(addresses, null, 2));
 }
 
 main().catch((error) => {
-  console.error("Deployment failed:", error);
-  process.exitCode = 1;
+  console.error(error);
+  process.exit(1);
 });
