@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { PrivyProvider } from '@privy-io/react-auth';
+import { PrivyProvider } from '@privy-io/react-auth'
+import { AnonAadhaarProvider } from '@anon-aadhaar/react'
 import './index.css'
 import App from './App.tsx'
 
@@ -15,7 +16,9 @@ createRoot(document.getElementById('root')!).render(
         },
       }}
     >
-      <App />
+      <AnonAadhaarProvider _useTestAadhaar={true}>
+        <App />
+      </AnonAadhaarProvider>
     </PrivyProvider>
   </StrictMode>,
 )
