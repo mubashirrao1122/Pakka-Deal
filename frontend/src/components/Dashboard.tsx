@@ -33,7 +33,6 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
   const { getAccessToken, user, logout } = usePrivy();
 
   const [description, setDescription] = useState('');
-  const [buyerWallet, setBuyerWallet] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AITemplateResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -125,7 +124,7 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
           milestoneAmounts,
           title: result.title,
           amountPkr: 0,
-          buyerWallet: buyerWallet || undefined,
+          buyerWallet: '0x0000000000000000000000000000000000000000',
         }),
       });
 
@@ -141,7 +140,7 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
             title: result.title,
             status: 'FUNDS_LOCKED',
             amount: '—',
-            buyer: buyerWallet ? `${buyerWallet.slice(0, 5)}...${buyerWallet.slice(-4)}` : 'PENDING',
+            buyer: 'ASSIGNED_ON_PAYMENT',
           },
         ]);
       } else {
@@ -298,16 +297,7 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
                 />
               </div>
 
-              <div className="input-group">
-                <label className="input-label">BUYER_WALLET_ADDR:</label>
-                <input
-                  className="brutalist-input"
-                  type="text"
-                  placeholder="0x..."
-                  value={buyerWallet}
-                  onChange={(e) => setBuyerWallet(e.target.value)}
-                />
-              </div>
+
 
               <button
                 className="brutalist-btn analyze-btn"
@@ -571,7 +561,6 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
                       setDealSuccess(null);
                       setResult(null);
                       setDescription('');
-                      setBuyerWallet('');
                     }}
                   >
                     <span className="btn-text">{'>'} CREATE_ANOTHER_DEAL</span>
