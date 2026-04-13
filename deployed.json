@@ -2,9 +2,9 @@
   "network": "wirefluid",
   "chainId": 92533,
   "deployer": "0x0fcCf23a31cF7eC253dc4068ba47F21c55681B07",
-  "forwarder": "0x36AeD0ff3f1C9648334fcC4B59eDAE015243a875",
-  "didRegistry": "0x39e70911522742D7862CEDFbb0707cb0851D8497",
-  "escrowVault": "0x189089ad8b432Fc2aDF4004C891746aaA45E20Ec",
-  "aiAgentInterface": "0x2Df95472943Ea2532E719fdDa776f974CFe0Fcc7",
-  "deployedAt": "2026-04-13T12:08:19.859Z"
+  "forwarder": "0xBA835F2D40cAabe54990a26f326Fd096ee574A3f",
+  "didRegistry": "0x76C42426eb0D96c9e7Dd16B5ccBc65B1B9e63B1e",
+  "escrowVault": "0x74DFeAcefF0488c2741781f3FB1E11a47834727C",
+  "aiAgentInterface": "0x9AEFD5034A4522Cc780AffED86153FC551160aFf",
+  "deployedAt": "2026-04-13T18:57:19.651Z"
 }

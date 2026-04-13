@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { aiEngineService } from '../services/aiEngineService';
+import { aiEngineService, riskLevelToUint8 } from '../services/aiEngineService';
 import { contractService } from '../services/contractService';
 import { PrismaClient } from '@prisma/client';
 
@@ -119,7 +119,13 @@ router.post('/collateral', async (req: Request, res: Response) => {
       });
     }
 
-    res.json({ success: true, data: result });
+    res.json({
+      success: true,
+      data: {
+        ...result,
+        riskLevelUint8: riskLevelToUint8(result.riskLevel), // Bug 3A fix: uint8 for on-chain fulfillCollateral
+      },
+    });
   } catch (error: any) {
     console.error('AI collateral error:', error);
     // Fallback to safe default if AI fails
@@ -128,6 +134,7 @@ router.post('/collateral', async (req: Request, res: Response) => {
       data: {
         collateralPercent: 20,
         riskLevel: 'MEDIUM',
+        riskLevelUint8: 1, // MEDIUM = 1
         reason: 'Default collateral (AI temporarily unavailable)',
         fraudFlag: false,
       },

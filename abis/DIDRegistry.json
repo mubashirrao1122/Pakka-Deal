@@ -1,6 +1,12 @@
 [
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_verifier",
+        "type": "address"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
@@ -126,6 +132,45 @@
     ],
     "name": "ScoreIncremented",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "NULLIFIER_SEED",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "PROOF_MAX_AGE",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "anonAadhaarVerifier",
+    "outputs": [
+      {
+        "internalType": "contract IAnonAadhaar",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   },
   {
     "inputs": [
@@ -374,8 +419,28 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "nullifierHash",
+        "name": "nullifier",
         "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "signal",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256[4]",
+        "name": "revealArray",
+        "type": "uint256[4]"
+      },
+      {
+        "internalType": "uint256[8]",
+        "name": "groth16Proof",
+        "type": "uint256[8]"
       }
     ],
     "name": "registerDID",

@@ -10,6 +10,11 @@
         "internalType": "address",
         "name": "_didRegistry",
         "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_platformRelayer",
+        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -52,13 +57,19 @@
         "type": "uint256"
       },
       {
+        "indexed": true,
+        "internalType": "address",
+        "name": "buyer",
+        "type": "address"
+      },
+      {
         "indexed": false,
         "internalType": "uint256",
-        "name": "amount",
+        "name": "amountLocked",
         "type": "uint256"
       }
     ],
-    "name": "BuyerFundsLocked",
+    "name": "BuyerJoined",
     "type": "event"
   },
   {
@@ -86,12 +97,6 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "buyer",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
         "name": "seller",
         "type": "address"
       },
@@ -100,6 +105,12 @@
         "internalType": "enum EscrowVault.DealType",
         "name": "dealType",
         "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "sellerBond",
+        "type": "uint256"
       }
     ],
     "name": "DealCreated",
@@ -242,25 +253,6 @@
       },
       {
         "indexed": false,
-        "internalType": "uint256",
-        "name": "bond",
-        "type": "uint256"
-      }
-    ],
-    "name": "SellerBondLocked",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "id",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
         "internalType": "address",
         "name": "arbitrator",
         "type": "address"
@@ -328,11 +320,6 @@
   {
     "inputs": [
       {
-        "internalType": "address payable",
-        "name": "_seller",
-        "type": "address"
-      },
-      {
         "internalType": "enum EscrowVault.DealType",
         "name": "_dealType",
         "type": "uint8"
@@ -366,7 +353,7 @@
         "type": "uint256"
       }
     ],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -669,22 +656,14 @@
         "internalType": "uint256",
         "name": "dealId",
         "type": "uint256"
-      }
-    ],
-    "name": "lockBuyerFunds",
-    "outputs": [],
-    "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [
+      },
       {
-        "internalType": "uint256",
-        "name": "dealId",
-        "type": "uint256"
+        "internalType": "address payable",
+        "name": "_buyer",
+        "type": "address"
       }
     ],
-    "name": "lockSellerBond",
+    "name": "joinAndLockFunds",
     "outputs": [],
     "stateMutability": "payable",
     "type": "function"
@@ -726,6 +705,19 @@
   {
     "inputs": [],
     "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "platformRelayer",
     "outputs": [
       {
         "internalType": "address",
