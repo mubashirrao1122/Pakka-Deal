@@ -59,7 +59,7 @@ router.post('/register', async (req: Request, res: Response) => {
 // Get full user profile
 router.get('/:wallet', async (req: Request, res: Response) => {
   try {
-    const { wallet } = req.params;
+    const wallet = String(req.params.wallet);
 
     const [dbUser, onChainIdentity, tier] = await Promise.allSettled([
       prisma.user.findUnique({ where: { walletAddress: wallet } }),
@@ -91,7 +91,7 @@ router.get('/:wallet', async (req: Request, res: Response) => {
 // Get just the score and tier
 router.get('/:wallet/score', async (req: Request, res: Response) => {
   try {
-    const { wallet } = req.params;
+    const wallet = String(req.params.wallet);
     const [score, tier] = await Promise.all([
       contractService.getScore(wallet),
       contractService.getTier(wallet),

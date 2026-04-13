@@ -1,0 +1,58 @@
+// Pakka Deal — Prisma Schema
+// SQLite for local dev; swap provider to "postgresql" for production
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            Int      @id @default(autoincrement())
+  walletAddress String   @unique
+  phoneNumber   String?
+  displayName   String?
+  cnicHash      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model DealCache {
+  id               Int       @id @default(autoincrement())
+  dealId           Int       @unique
+  title            String
+  dealType         String
+  amountPkr        BigInt    @default(0)
+  buyerWallet      String?
+  sellerWallet     String
+  currentState     String    @default("PENDING")
+  milestoneCount   Int       @default(1)
+  currentMilestone Int       @default(0)
+  metadataCid      String?
+  lastSynced       DateTime?
+  createdAt        DateTime  @default(now())
+}
+
+model AIRiskCache {
+  id            Int      @id @default(autoincrement())
+  dealId        Int      @unique
+  collateralPct Int
+  riskLevel     String
+  fraudFlag     Boolean  @default(false)
+  riskSummary   String?
+  generatedAt   DateTime @default(now())
+}
+
+model IPFSFile {
+  id         Int      @id @default(autoincrement())
+  cid        String   @unique
+  dealId     Int?
+  fileType   String?
+  fileName   String
+  uploadedBy String?
+  pinned     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+}

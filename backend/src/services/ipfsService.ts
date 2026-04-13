@@ -99,7 +99,7 @@ export const ipfsService = {
   async isPinned(cid: string): Promise<boolean> {
     try {
       const result = await pinata.pinList({ hashContains: cid });
-      return result.count > 0;
+      return result.rows.length > 0;
     } catch {
       return false;
     }

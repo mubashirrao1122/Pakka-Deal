@@ -88,7 +88,7 @@ router.post('/', async (req: Request, res: Response) => {
 // Get deal details (on-chain + cached metadata)
 router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const dealId = parseInt(req.params.id);
+    const dealId = parseInt(String(req.params.id));
     if (isNaN(dealId)) {
       res.status(400).json({ success: false, error: 'Invalid deal ID' });
       return;
@@ -119,7 +119,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 // Get all deals for a wallet address
 router.get('/wallet/:address', async (req: Request, res: Response) => {
   try {
-    const { address } = req.params;
+    const address = String(req.params.address);
     const deals = await prisma.dealCache.findMany({
       where: {
         OR: [
@@ -164,7 +164,7 @@ router.get('/', async (req: Request, res: Response) => {
 // Update cached deal state (called after on-chain events)
 router.patch('/:id/state', async (req: Request, res: Response) => {
   try {
-    const dealId = parseInt(req.params.id);
+    const dealId = parseInt(String(req.params.id));
     const { state, currentMilestone } = req.body;
 
     const updated = await prisma.dealCache.update({

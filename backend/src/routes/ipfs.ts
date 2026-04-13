@@ -73,7 +73,7 @@ router.post('/upload-json', async (req: Request, res: Response) => {
 // Get info about a pinned CID
 router.get('/:cid', async (req: Request, res: Response) => {
   try {
-    const { cid } = req.params;
+    const cid = String(req.params.cid);
     const pinned  = await ipfsService.isPinned(cid);
 
     res.json({

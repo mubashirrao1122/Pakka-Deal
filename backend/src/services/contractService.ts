@@ -16,10 +16,13 @@ function loadABI(contractName: string): any[] {
 
 const provider = new ethers.JsonRpcProvider(process.env.WIREFLUID_RPC_URL);
 
-const relayerWallet = new ethers.Wallet(
-  process.env.RELAYER_PRIVATE_KEY!,
-  provider
-);
+function getRelayerWallet(): ethers.Wallet {
+  const pk = process.env.RELAYER_PRIVATE_KEY;
+  if (!pk || pk.trim() === '') {
+    throw new Error('RELAYER_PRIVATE_KEY is not configured in .env');
+  }
+  return new ethers.Wallet(pk, provider);
+}
 
 const escrowVaultReadOnly = new ethers.Contract(
   DEPLOYED.escrowVault,
@@ -27,11 +30,9 @@ const escrowVaultReadOnly = new ethers.Contract(
   provider
 );
 
-const escrowVaultSigner = new ethers.Contract(
-  DEPLOYED.escrowVault,
-  loadABI('EscrowVault'),
-  relayerWallet
-);
+function getEscrowVaultSigner() {
+  return new ethers.Contract(DEPLOYED.escrowVault, loadABI('EscrowVault'), getRelayerWallet());
+}
 
 const didRegistryReadOnly = new ethers.Contract(
   DEPLOYED.didRegistry,
@@ -39,17 +40,13 @@ const didRegistryReadOnly = new ethers.Contract(
   provider
 );
 
-const didRegistrySigner = new ethers.Contract(
-  DEPLOYED.didRegistry,
-  loadABI('DIDRegistry'),
-  relayerWallet
-);
+function getDidRegistrySigner() {
+  return new ethers.Contract(DEPLOYED.didRegistry, loadABI('DIDRegistry'), getRelayerWallet());
+}
 
-const aiAgentSigner = new ethers.Contract(
-  DEPLOYED.aiAgentInterface,
-  loadABI('AIAgentInterface'),
-  relayerWallet
-);
+function getAiAgentSigner() {
+  return new ethers.Contract(DEPLOYED.aiAgentInterface, loadABI('AIAgentInterface'), getRelayerWallet());
+}
 
 export const contractService = {
 
@@ -64,7 +61,7 @@ export const contractService = {
     milestoneAmounts:  string[];
   }): Promise<{ txHash: string; dealId: number }> {
 
-    const tx = await escrowVaultSigner.createDeal(
+    const tx = await getEscrowVaultSigner().createDeal(
       params.sellerAddress,
       params.dealType,
       BigInt(params.totalAmountWei),
@@ -79,7 +76,7 @@ export const contractService = {
     let dealId = 0;
     for (const log of receipt.logs) {
       try {
-        const parsed = escrowVaultSigner.interface.parseLog(log);
+        const parsed = escrowVaultReadOnly.interface.parseLog(log);
         if (parsed && parsed.name === 'DealCreated') {
           dealId = Number(parsed.args[0]);
           break;
@@ -112,7 +109,7 @@ export const contractService = {
     nullifierHash: bigint
   ): Promise<string> {
     // Relayer registers DID on behalf of user
-    const tx = await didRegistrySigner.registerDID(nullifierHash);
+    const tx = await getDidRegistrySigner().registerDID(nullifierHash);
     const receipt = await tx.wait();
     return receipt.hash;
   },
@@ -143,7 +140,7 @@ export const contractService = {
     fraudFlag:         boolean,
     riskSummary:       string
   ): Promise<string> {
-    const tx = await aiAgentSigner.fulfillCollateral(
+    const tx = await getAiAgentSigner().fulfillCollateral(
       dealId,
       collateralPercent,
       riskLevel,
@@ -161,7 +158,7 @@ export const contractService = {
     suggestedCollateralPct: number,
     gracePeriodHours:       number
   ): Promise<string> {
-    const tx = await aiAgentSigner.fulfillTemplate(
+    const tx = await getAiAgentSigner().fulfillTemplate(
       requestId,
       dealType,
       title,
@@ -175,11 +172,12 @@ export const contractService = {
   // ── Utility ──
 
   getRelayerAddress(): string {
-    return relayerWallet.address;
+    return getRelayerWallet().address;
   },
 
   async getRelayerBalance(): Promise<string> {
-    const balance = await provider.getBalance(relayerWallet.address);
+    const wallet = getRelayerWallet();
+    const balance = await provider.getBalance(wallet.address);
     return ethers.formatEther(balance);
   },
 
