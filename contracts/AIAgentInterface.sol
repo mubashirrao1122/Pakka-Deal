@@ -66,6 +66,7 @@ contract AIAgentInterface is Ownable {
         require(collateralPercent >= 5 && collateralPercent <= 50, "Invalid collateral %");
         require(riskLevel <= 3, "Invalid risk level");
 
+
         riskResults[dealId] = AIRiskResult({
             collateralPercent: collateralPercent,
             riskLevel:         riskLevel,

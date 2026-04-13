@@ -48,10 +48,10 @@ contract EscrowVault is ReentrancyGuard, Ownable, ERC2771Context {
 
     uint256 public dealCounter;
     address public didRegistry;
+    address public platformRelayer;
 
-    event DealCreated(uint256 indexed id, address indexed buyer, address indexed seller, DealType dealType);
-    event BuyerFundsLocked(uint256 indexed id, uint256 amount);
-    event SellerBondLocked(uint256 indexed id, uint256 bond);
+    event DealCreated(uint256 indexed id, address indexed seller, DealType dealType, uint256 sellerBond);
+    event BuyerJoined(uint256 indexed id, address indexed buyer, uint256 amountLocked);
     event MilestoneReleased(uint256 indexed id, uint8 milestone, uint256 amount);
     event DealCompleted(uint256 indexed id);
     event DealDefaulted(uint256 indexed id, address defaulter);
@@ -60,11 +60,12 @@ contract EscrowVault is ReentrancyGuard, Ownable, ERC2771Context {
     event VoteCast(uint256 indexed id, address arbitrator, Vote vote);
     event DisputeResolved(uint256 indexed id, string outcome);
 
-    constructor(address trustedForwarder, address _didRegistry)
+    constructor(address trustedForwarder, address _didRegistry, address _platformRelayer)
         ERC2771Context(trustedForwarder)
         Ownable(msg.sender)
     {
         didRegistry = _didRegistry;
+        platformRelayer = _platformRelayer;
     }
 
     function _msgSender() internal view override(Context, ERC2771Context) returns (address) {
@@ -79,21 +80,23 @@ contract EscrowVault is ReentrancyGuard, Ownable, ERC2771Context {
         return ERC2771Context._contextSuffixLength();
     }
 
-    // ── Create Deal ──
+    // ── Create Deal (Seller-First Flow) ──
+    // Seller creates the deal and locks their collateral bond in one transaction.
+    // Buyer joins later via joinAndLockFunds (directly or via platform relayer proxy).
     function createDeal(
-        address payable _seller,
         DealType        _dealType,
         uint256         _totalAmount,
         uint256         _collateralPercent,
         string[] calldata _milestoneLabels,
         uint256[] calldata _milestoneAmounts
-    ) external returns (uint256 dealId) {
-        require(_seller != address(0), "Invalid seller");
-        require(_seller != _msgSender(), "Buyer and seller cannot be same");
+    ) external payable nonReentrant returns (uint256 dealId) {
         require(_totalAmount > 0, "Amount must be > 0");
         require(_collateralPercent >= 5 && _collateralPercent <= 50, "Collateral 5-50%");
         require(_milestoneLabels.length == _milestoneAmounts.length, "Milestone mismatch");
         require(_milestoneLabels.length >= 1 && _milestoneLabels.length <= 4, "1-4 milestones only");
+
+        uint256 expectedBond = (_totalAmount * _collateralPercent) / 100;
+        require(msg.value == expectedBond, "Must send exact seller bond");
 
         uint256 sum = 0;
         for (uint256 i = 0; i < _milestoneAmounts.length; i++) {
@@ -108,10 +111,10 @@ contract EscrowVault is ReentrancyGuard, Ownable, ERC2771Context {
             id:               dealId,
             dealType:         _dealType,
             state:            DealState.PENDING,
-            buyer:            payable(_msgSender()),
-            seller:           _seller,
+            buyer:            payable(address(0)),
+            seller:           payable(_msgSender()),
             totalAmount:      _totalAmount,
-            sellerBond:       (_totalAmount * _collateralPercent) / 100,
+            sellerBond:       expectedBond,
             gracePeriodEnd:   0,
             disputed:         false,
             buyerEvidence:    "",
@@ -129,34 +132,31 @@ contract EscrowVault is ReentrancyGuard, Ownable, ERC2771Context {
             }));
         }
 
-        emit DealCreated(dealId, _msgSender(), _seller, _dealType);
+        emit DealCreated(dealId, _msgSender(), _dealType, expectedBond);
     }
 
-    // ── Lock Buyer Funds ──
-    function lockBuyerFunds(uint256 dealId) external payable nonReentrant {
+    // ── Join and Lock Buyer Funds (Fiat/Relayer Proxy) ──
+    // Either the buyer themselves OR the platform relayer (after fiat payment
+    // via JazzCash) can call this to lock the buyer's funds and activate the deal.
+    function joinAndLockFunds(uint256 dealId, address payable _buyer) external payable nonReentrant {
         Deal storage deal = deals[dealId];
         require(deal.state == DealState.PENDING, "Deal not pending");
-        require(_msgSender() == deal.buyer, "Only buyer can lock funds");
+        require(deal.buyer == address(0), "Buyer already joined");
+        require(_buyer != address(0), "Invalid buyer address");
+        require(_buyer != deal.seller, "Buyer and seller cannot be same");
         require(msg.value == deal.totalAmount, "Must send exact deal amount");
-        require(deal.gracePeriodEnd == 0, "Already locked by buyer");
 
-        deal.gracePeriodEnd = 1; // mark buyer has locked, use 1 as flag
+        // Authorization: either the buyer directly or the platform relayer acting as proxy
+        require(
+            _msgSender() == _buyer || _msgSender() == platformRelayer,
+            "Only buyer or platform relayer can lock funds"
+        );
 
-        emit BuyerFundsLocked(dealId, msg.value);
-    }
-
-    // ── Lock Seller Bond ──
-    function lockSellerBond(uint256 dealId) external payable nonReentrant {
-        Deal storage deal = deals[dealId];
-        require(deal.state == DealState.PENDING, "Deal not pending");
-        require(_msgSender() == deal.seller, "Only seller can lock bond");
-        require(deal.gracePeriodEnd == 1, "Buyer must lock first");
-        require(msg.value == deal.sellerBond, "Must send exact bond amount");
-
+        deal.buyer          = _buyer;
         deal.state          = DealState.LOCKED;
         deal.gracePeriodEnd = block.timestamp + 72 hours;
 
-        emit SellerBondLocked(dealId, msg.value);
+        emit BuyerJoined(dealId, _buyer, msg.value);
     }
 
     // ── Confirm Milestone ──
@@ -236,6 +236,9 @@ contract EscrowVault is ReentrancyGuard, Ownable, ERC2771Context {
         require(!deal.disputed, "Already disputed");
         require(deal.state == DealState.LOCKED, "Deal must be locked");
         require(arb1 != address(0) && arb2 != address(0) && arb3 != address(0), "Invalid arbitrators");
+        require(arb1 != deal.buyer && arb1 != deal.seller, "Arb1 cannot be deal party");
+        require(arb2 != deal.buyer && arb2 != deal.seller, "Arb2 cannot be deal party");
+        require(arb3 != deal.buyer && arb3 != deal.seller, "Arb3 cannot be deal party");
 
         deal.disputed = true;
         deal.state    = DealState.DISPUTED;

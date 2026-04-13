@@ -31,7 +31,7 @@ async function main() {
 
   console.log("\n[3/4] Deploying EscrowVault...");
   const EscrowVault = await ethers.getContractFactory("EscrowVault");
-  const escrowVault = await EscrowVault.deploy(forwarderAddress, didRegistryAddress);
+  const escrowVault = await EscrowVault.deploy(forwarderAddress, didRegistryAddress, deployer.address);
   await escrowVault.waitForDeployment();
   const escrowVaultAddress = await escrowVault.getAddress();
   console.log("    EscrowVault:", escrowVaultAddress);
