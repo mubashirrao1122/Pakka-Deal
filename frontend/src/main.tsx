@@ -10,9 +10,11 @@ createRoot(document.getElementById('root')!).render(
     <PrivyProvider
       appId={import.meta.env.VITE_PRIVY_APP_ID}
       config={{
-        loginMethods: ['sms'],
+        loginMethods: ['email'],
         embeddedWallets: {
-          createOnLogin: 'users-without-wallets',
+          ethereum: {
+            createOnLogin: 'users-without-wallets',
+          },
         },
       }}
     >

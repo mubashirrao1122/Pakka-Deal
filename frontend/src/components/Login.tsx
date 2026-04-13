@@ -23,9 +23,9 @@ export default function Login() {
           
           {!authenticated ? (
             <div className="auth-prompt">
-              <p className="subtitle">Secure Escrow Protocol requires authentication to proceed.</p>
+              <p className="subtitle">Secure Escrow Protocol requires email authentication to proceed.</p>
               <button className="brutalist-btn" onClick={login}>
-                <span className="btn-text">{'>'} INITIALIZE_LOGIN_VIA_SMS</span>
+                <span className="btn-text">{'>'} INITIALIZE_LOGIN_VIA_EMAIL</span>
                 <span className="cursor-blink">_</span>
               </button>
             </div>

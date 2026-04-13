@@ -39,7 +39,7 @@ export default function VerifyIdentity() {
               <div className="step-indicator">
                 <div className="step completed">
                   <span className="step-num">01</span>
-                  <span className="step-label">PHONE_AUTH</span>
+                  <span className="step-label">EMAIL_AUTH</span>
                   <span className="step-check">✓</span>
                 </div>
                 <div className="step-connector"></div>
@@ -78,7 +78,7 @@ export default function VerifyIdentity() {
               <div className="aadhaar-widget">
                 <LogInWithAnonAadhaar
                   nullifierSeed={1234}
-                  fieldsToReveal={['ageAbove18']}
+                  fieldsToReveal={['revealAgeAbove18']}
                 />
               </div>
 
