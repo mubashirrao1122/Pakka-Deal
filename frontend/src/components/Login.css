@@ -1,0 +1,213 @@
+/* 
+  Aesthetic: Monochrome Brutalist Trust
+  DFII Score: 10
+  Key Inspiration: High security physical vaults and raw terminal displays. This avoids generic SaaS UI by using a rigid, mono-styled UI structural framing rather than soft rounded dropshadow containers.
+*/
+
+:root {
+  --bg-color: #050505;
+  --fg-color: #e0e0e0;
+  --accent-color: #00ff66; /* Neon terminal green */
+  --border-color: rgba(255, 255, 255, 0.2);
+  --error-color: #ff3333;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg-color);
+  color: var(--fg-color);
+  font-family: 'Courier New', Courier, monospace; /* Strict mono for brutalist tech feel */
+  -webkit-font-smoothing: antialiased;
+}
+
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 1rem;
+}
+
+.loading {
+  font-size: 1.2rem;
+  color: var(--accent-color);
+  animation: pulse 1.5s infinite;
+}
+
+.terminal-box {
+  width: 100%;
+  max-width: 600px;
+  border: 1px solid var(--border-color);
+  background: rgba(10, 10, 10, 0.8);
+  backdrop-filter: blur(10px);
+  box-shadow: 10px 10px 0px rgba(0, 255, 102, 0.1);
+  position: relative;
+}
+
+.terminal-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 15px;
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 8px;
+  background: var(--border-color);
+}
+
+.dot:nth-child(1) { background: #ff5f56; }
+.dot:nth-child(2) { background: #ffbd2e; }
+.dot:nth-child(3) { background: #27c93f; }
+
+.header-title {
+  margin-left: auto;
+  font-size: 0.75rem;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.terminal-body {
+  padding: 40px 30px;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 20px 0;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-left: 4px solid var(--accent-color);
+  padding-left: 15px;
+}
+
+.subtitle {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 30px;
+  line-height: 1.5;
+}
+
+.brutalist-btn {
+  background: transparent;
+  color: var(--fg-color);
+  border: 1px solid var(--accent-color);
+  padding: 15px 20px;
+  font-family: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.brutalist-btn:hover {
+  background: rgba(0, 255, 102, 0.1);
+  box-shadow: 4px 4px 0px var(--accent-color);
+  transform: translate(-2px, -2px);
+}
+
+.brutalist-btn:active {
+  box-shadow: 0px 0px 0px var(--accent-color);
+  transform: translate(2px, 2px);
+}
+
+.logout-btn {
+  border-color: var(--border-color);
+  margin-top: 30px;
+}
+
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 4px 4px 0px var(--border-color);
+}
+
+.btn-text {
+  flex-grow: 1;
+}
+
+.cursor-blink {
+  display: inline-block;
+  width: 10px;
+  animation: blink 1s step-end infinite;
+}
+
+/* Success States */
+.auth-success {
+  animation: fadeUp 0.4s ease-out;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 30px;
+  font-weight: bold;
+  font-size: 0.9rem;
+  color: var(--accent-color);
+  letter-spacing: 1px;
+}
+
+.status-dot.healthy {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  box-shadow: 0 0 10px var(--accent-color);
+}
+
+.data-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 20px;
+  border: 1px solid var(--border-color);
+}
+
+.data-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.data-label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.data-value {
+  font-size: 0.95rem;
+  word-break: break-all;
+}
+
+.highlight {
+  color: #fff;
+}
+
+.wallet-address {
+  color: var(--accent-color);
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
