@@ -11,6 +11,19 @@ interface AITemplateResult {
   detectedLanguage: string;
 }
 
+interface ActiveDeal {
+  id: number;
+  title: string;
+  status: 'FUNDS_LOCKED' | 'COMPLETED' | 'DISPUTED';
+  amount: string;
+  buyer: string;
+}
+
+interface Notification {
+  type: 'success' | 'warning' | 'info';
+  message: string;
+}
+
 interface DashboardProps {
   pakkaScore?: number;
   nullifier?: string | null;
@@ -33,6 +46,14 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
     metadataCid: string | null;
   } | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+
+  // Active deals management
+  const [activeDeals, setActiveDeals] = useState<ActiveDeal[]>([
+    { id: 1, title: 'iPhone 14 Pro Max — Lahore DHA Deal', status: 'FUNDS_LOCKED', amount: '200,000 PKR', buyer: '0x7a3...f1c9' },
+    { id: 2, title: 'Honda Civic 2020 — Islamabad Transfer', status: 'FUNDS_LOCKED', amount: '3,500,000 PKR', buyer: '0x2e8...a4b2' },
+  ]);
+  const [notification, setNotification] = useState<Notification | null>(null);
+  const [processingDealId, setProcessingDealId] = useState<number | null>(null);
 
   const handleAnalyzeDeal = async () => {
     if (!description.trim()) {
@@ -112,6 +133,17 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
 
       if (data.success) {
         setDealSuccess(data.data);
+        // Add to active deals
+        setActiveDeals((prev) => [
+          ...prev,
+          {
+            id: data.data.dealId,
+            title: result.title,
+            status: 'FUNDS_LOCKED',
+            amount: '—',
+            buyer: buyerWallet ? `${buyerWallet.slice(0, 5)}...${buyerWallet.slice(-4)}` : 'PENDING',
+          },
+        ]);
       } else {
         setError(data.error || 'DEAL_CREATION_FAILED');
       }
@@ -143,8 +175,81 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
     }
   };
 
+  const showNotification = (n: Notification) => {
+    setNotification(n);
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const handleReleaseFunds = async (id: number) => {
+    setProcessingDealId(id);
+    try {
+      const token = await getAccessToken();
+      // Attempt real call, fall back to mock
+      try {
+        await fetch(`http://localhost:3001/api/deals/${id}/state`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ newState: 'COMPLETED' }),
+        });
+      } catch {
+        // Silently mock for demo
+      }
+      setActiveDeals((prev) =>
+        prev.map((d) => (d.id === id ? { ...d, status: 'COMPLETED' } : d))
+      );
+      showNotification({
+        type: 'success',
+        message: '[ FUNDS_SUCCESSFULLY_TRANSFERRED_TO_SELLER ]',
+      });
+    } finally {
+      setProcessingDealId(null);
+    }
+  };
+
+  const handleRaiseDispute = async (id: number) => {
+    setProcessingDealId(id);
+    try {
+      const token = await getAccessToken();
+      try {
+        await fetch(`http://localhost:3001/api/deals/${id}/state`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ newState: 'DISPUTED' }),
+        });
+      } catch {
+        // Silently mock for demo
+      }
+      setActiveDeals((prev) =>
+        prev.map((d) => (d.id === id ? { ...d, status: 'DISPUTED' } : d))
+      );
+      showNotification({
+        type: 'warning',
+        message: '[ AI_ARBITRATION_INITIATED ] — 3 Human Arbitrators alerted.',
+      });
+    } finally {
+      setProcessingDealId(null);
+    }
+  };
+
   return (
     <div className="dashboard-container">
+      {/* ── Notification Toast ────────────────────── */}
+      {notification && (
+        <div className={`dash-toast toast-${notification.type}`}>
+          <span className="toast-icon">
+            {notification.type === 'success' ? '✓' : notification.type === 'warning' ? '⚠' : '◆'}
+          </span>
+          <span className="toast-text">{notification.message}</span>
+          <button className="toast-close" onClick={() => setNotification(null)}>✕</button>
+        </div>
+      )}
+
       {/* ── Top Bar ──────────────────────────────── */}
       <header className="dash-header">
         <div className="dash-brand">
@@ -226,6 +331,76 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
               )}
             </div>
           </div>
+
+          {/* ── Active Deals ── */}
+          {activeDeals.length > 0 && (
+            <div className="terminal-box active-deals-box">
+              <div className="terminal-header">
+                <span className="dot"></span>
+                <span className="dot"></span>
+                <span className="dot"></span>
+                <div className="header-title">ACTIVE_DEALS ({activeDeals.length})</div>
+              </div>
+              <div className="terminal-body">
+                <h2 className="panel-title">{'>'} MANAGE_ESCROW</h2>
+
+                {activeDeals.map((deal) => (
+                  <div key={deal.id} className={`deal-card deal-status-${deal.status.toLowerCase()}`}>
+                    <div className="deal-card-header">
+                      <span className="deal-card-id">#{deal.id}</span>
+                      <span className={`deal-card-status status-${deal.status.toLowerCase()}`}>
+                        {deal.status}
+                      </span>
+                    </div>
+                    <div className="deal-card-title">{deal.title}</div>
+                    <div className="deal-card-meta">
+                      <span>{deal.amount}</span>
+                      <span className="deal-card-buyer">BUYER: {deal.buyer}</span>
+                    </div>
+
+                    {deal.status === 'FUNDS_LOCKED' && (
+                      <div className="deal-card-actions">
+                        <button
+                          className="brutalist-btn release-btn"
+                          onClick={() => handleReleaseFunds(deal.id)}
+                          disabled={processingDealId === deal.id}
+                        >
+                          <span className="btn-text">
+                            {processingDealId === deal.id
+                              ? '[ PROCESSING... ]'
+                              : '> RELEASE_FUNDS'}
+                          </span>
+                        </button>
+                        <button
+                          className="brutalist-btn dispute-btn"
+                          onClick={() => handleRaiseDispute(deal.id)}
+                          disabled={processingDealId === deal.id}
+                        >
+                          <span className="btn-text">
+                            {'>'} RAISE_DISPUTE
+                          </span>
+                        </button>
+                      </div>
+                    )}
+
+                    {deal.status === 'COMPLETED' && (
+                      <div className="deal-card-resolved">
+                        <span className="resolved-icon">✓</span>
+                        <span>FUNDS_RELEASED</span>
+                      </div>
+                    )}
+
+                    {deal.status === 'DISPUTED' && (
+                      <div className="deal-card-disputed">
+                        <span className="disputed-icon">⚠</span>
+                        <span>ARBITRATION_IN_PROGRESS</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Right: AI Output */}

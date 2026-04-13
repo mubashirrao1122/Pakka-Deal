@@ -564,3 +564,229 @@
   background: rgba(255,255,255,0.03);
 }
 
+/* ── Notification Toast ────────────────────────── */
+
+.dash-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border: 1px solid;
+  background: rgba(10, 10, 10, 0.95);
+  backdrop-filter: blur(10px);
+  animation: toastSlide 0.3s ease-out;
+  max-width: 500px;
+}
+
+.toast-success {
+  border-color: var(--accent-color, #00ff66);
+  box-shadow: 0 0 20px rgba(0, 255, 102, 0.15);
+}
+
+.toast-warning {
+  border-color: #ffbd2e;
+  box-shadow: 0 0 20px rgba(255, 189, 46, 0.15);
+}
+
+.toast-info {
+  border-color: rgba(255,255,255,0.3);
+}
+
+.toast-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.toast-success .toast-icon { color: var(--accent-color, #00ff66); }
+.toast-warning .toast-icon { color: #ffbd2e; }
+
+.toast-text {
+  font-size: 0.8rem;
+  letter-spacing: 0.5px;
+  color: var(--fg-color, #e0e0e0);
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.3);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.toast-close:hover {
+  color: var(--fg-color, #e0e0e0);
+}
+
+@keyframes toastSlide {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+/* ── Active Deals Box ──────────────────────────── */
+
+.active-deals-box {
+  margin-top: 20px;
+}
+
+.deal-card {
+  border: 1px solid var(--border-color, rgba(255,255,255,0.15));
+  padding: 16px;
+  margin-bottom: 12px;
+  background: rgba(255,255,255,0.02);
+  transition: border-color 0.2s;
+}
+
+.deal-card:last-child {
+  margin-bottom: 0;
+}
+
+.deal-status-funds_locked {
+  border-left: 3px solid var(--accent-color, #00ff66);
+}
+
+.deal-status-completed {
+  border-left: 3px solid rgba(255,255,255,0.2);
+  opacity: 0.7;
+}
+
+.deal-status-disputed {
+  border-left: 3px solid #ffbd2e;
+}
+
+.deal-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.deal-card-id {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.4);
+}
+
+.deal-card-status {
+  font-size: 0.65rem;
+  letter-spacing: 1px;
+  padding: 3px 10px;
+  font-weight: 700;
+}
+
+.status-funds_locked {
+  color: var(--accent-color, #00ff66);
+  border: 1px solid rgba(0, 255, 102, 0.3);
+  background: rgba(0, 255, 102, 0.05);
+}
+
+.status-completed {
+  color: rgba(255,255,255,0.4);
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+.status-disputed {
+  color: #ffbd2e;
+  border: 1px solid rgba(255, 189, 46, 0.3);
+  background: rgba(255, 189, 46, 0.05);
+}
+
+.deal-card-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--fg-color, #e0e0e0);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.deal-card-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 15px;
+  letter-spacing: 0.5px;
+}
+
+.deal-card-buyer {
+  color: rgba(255,255,255,0.3);
+}
+
+/* ── Deal Actions ──────────────────────────────── */
+
+.deal-card-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.release-btn {
+  border-color: var(--accent-color, #00ff66);
+  color: var(--accent-color, #00ff66);
+  font-size: 0.75rem;
+  padding: 10px;
+}
+
+.release-btn:hover:not(:disabled) {
+  background: rgba(0, 255, 102, 0.1);
+}
+
+.dispute-btn {
+  border-color: #ff5f56;
+  color: #ff5f56;
+  font-size: 0.75rem;
+  padding: 10px;
+}
+
+.dispute-btn:hover:not(:disabled) {
+  background: rgba(255, 95, 86, 0.1);
+}
+
+.release-btn:disabled,
+.dispute-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+/* ── Resolved / Disputed Badges ────────────────── */
+
+.deal-card-resolved {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid rgba(0, 255, 102, 0.2);
+  background: rgba(0, 255, 102, 0.03);
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+  color: var(--accent-color, #00ff66);
+}
+
+.resolved-icon {
+  font-weight: 900;
+  text-shadow: 0 0 8px rgba(0, 255, 102, 0.5);
+}
+
+.deal-card-disputed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 189, 46, 0.2);
+  background: rgba(255, 189, 46, 0.03);
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+  color: #ffbd2e;
+}
+
+.disputed-icon {
+  font-size: 1rem;
+}
+
