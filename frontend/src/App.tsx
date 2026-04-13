@@ -11,6 +11,7 @@ function App() {
   const { ready, authenticated } = usePrivy()
   const [anonAadhaar] = useAnonAadhaar()
   const [nullifier, setNullifier] = useState<string | null>(null)
+  const [zkBypassed, setZkBypassed] = useState(false)
 
   // Extract nullifier when ZK proof completes
   useEffect(() => {
@@ -22,6 +23,13 @@ function App() {
       }
     }
   }, [anonAadhaar])
+
+  // Dev bypass handler for hackathon demo
+  const handleZkBypass = (dummyNullifier: string) => {
+    setNullifier(dummyNullifier)
+    setZkBypassed(true)
+    console.log('[DEV_BYPASS] ZK proof simulated, nullifier:', dummyNullifier)
+  }
 
   // ── Simple Routing: /pay/:dealId ──
   const pathname = window.location.pathname
@@ -53,10 +61,10 @@ function App() {
   }
 
   // State 2: Privy authenticated but ZK identity not verified
-  if (anonAadhaar.status !== 'logged-in') {
+  if (anonAadhaar.status !== 'logged-in' && !zkBypassed) {
     return (
       <div className="app-layout">
-        <VerifyIdentity />
+        <VerifyIdentity onBypass={handleZkBypass} />
       </div>
     )
   }

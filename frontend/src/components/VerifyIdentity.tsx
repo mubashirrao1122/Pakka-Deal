@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react';
 import { LogInWithAnonAadhaar, useAnonAadhaar } from '@anon-aadhaar/react';
 import './VerifyIdentity.css';
 
-export default function VerifyIdentity() {
+interface VerifyIdentityProps {
+  onBypass?: (nullifier: string) => void;
+}
+
+export default function VerifyIdentity({ onBypass }: VerifyIdentityProps) {
   const [anonAadhaar] = useAnonAadhaar();
   const [nullifier, setNullifier] = useState<string | null>(null);
 
@@ -86,6 +90,16 @@ export default function VerifyIdentity() {
                 <span className="lock-icon">⚿</span>
                 <span>TEST MODE — Using synthetic Aadhaar QR for hackathon demo</span>
               </div>
+
+              {onBypass && (
+                <button
+                  className="brutalist-btn bypass-btn"
+                  onClick={() => onBypass('0x123456789abcdef0deadbeef42069faceb00c1337')}
+                >
+                  <span className="btn-text">{'>'} DEV_BYPASS: SIMULATE_ZK_PROOF</span>
+                  <span className="cursor-blink">_</span>
+                </button>
+              )}
             </div>
           ) : (
             <div className="verify-success">
