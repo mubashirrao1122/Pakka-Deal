@@ -20,6 +20,15 @@ function safeParseJSON<T>(text: string): T {
     .trim();
   return JSON.parse(cleaned) as T;
 }
+export function riskLevelToUint8(level: string): number {
+  const map: Record<string, number> = {
+    LOW: 0,
+    MEDIUM: 1,
+    HIGH: 2,
+    CRITICAL: 3,
+  };
+  return map[level?.toUpperCase()] ?? 1;
+}
 
 export const aiEngineService = {
 
