@@ -88,6 +88,7 @@ export interface AIFraudResult {
 
 export interface AITemplateRequest {
   description: string;
+  dealTypeHint?: string;
 }
 
 export interface AITemplateResult {
@@ -97,6 +98,8 @@ export interface AITemplateResult {
   gracePeriodHours:       number;
   suggestedCollateralPct: number;
   detectedLanguage:       string;
+  redFlag?:               boolean;
+  redFlagReason?:         string;
 }
 
 export interface AIRiskSummaryRequest {

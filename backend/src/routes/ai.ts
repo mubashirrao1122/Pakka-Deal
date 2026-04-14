@@ -1,14 +1,10 @@
 import { Router, Request, Response } from 'express';
-import { aiEngineService, riskLevelToUint8 } from '../services/aiEngineService';
+import { aiEngineService } from '../services/aiEngineService';
 import { contractService } from '../services/contractService';
 import { PrismaClient } from '@prisma/client';
-import { verifyPrivyToken } from '../middleware/auth';
 
 const router = Router();
 const prisma = new PrismaClient();
-
-// Protect all AI routes so only logged-in users can access them
-router.use(verifyPrivyToken);
 
 function fallbackFraudAssessment(params: {
   dealType: string;
@@ -123,13 +119,7 @@ router.post('/collateral', async (req: Request, res: Response) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: {
-        ...result,
-        riskLevelUint8: riskLevelToUint8(result.riskLevel), // Bug 3A fix: uint8 for on-chain fulfillCollateral
-      },
-    });
+    res.json({ success: true, data: result });
   } catch (error: any) {
     console.error('AI collateral error:', error);
     // Fallback to safe default if AI fails
@@ -138,7 +128,6 @@ router.post('/collateral', async (req: Request, res: Response) => {
       data: {
         collateralPercent: 20,
         riskLevel: 'MEDIUM',
-        riskLevelUint8: 1, // MEDIUM = 1
         reason: 'Default collateral (AI temporarily unavailable)',
         fraudFlag: false,
       },
@@ -187,14 +176,14 @@ router.post('/fraud', async (req: Request, res: Response) => {
 // Generate deal template from plain text description
 router.post('/template', async (req: Request, res: Response) => {
   try {
-    const { description } = req.body;
+    const { description, dealTypeHint } = req.body;
 
     if (!description || description.trim().length < 5) {
       res.status(400).json({ success: false, error: 'Description too short' });
       return;
     }
 
-    const result = await aiEngineService.generateTemplate({ description });
+    const result = await aiEngineService.generateTemplate({ description, dealTypeHint });
     res.json({ success: true, data: result });
   } catch (error: any) {
     console.error('AI template error:', error);

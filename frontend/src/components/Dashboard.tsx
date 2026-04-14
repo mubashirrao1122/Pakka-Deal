@@ -9,7 +9,19 @@ const ESCROW_ADDRESS = '0x74DFeAcefF0488c2741781f3FB1E11a47834727C';
 const DEAL_TYPE_MAP: Record<string, number> = {
   CAR: 0, PROPERTY: 1, FREELANCE: 2, PSL_FRANCHISE: 3,
   PSL_PLAYER: 4, MARKETPLACE: 5, CUSTOM: 6,
+  PSL_FRANCHISE_BID: 3, PSL_PLAYER_TRANSFER: 4,
 };
+
+const DEAL_CATEGORIES = [
+  { value: '', label: 'AUTO_DETECT (AI decides)' },
+  { value: 'CAR', label: 'CAR / Vehicle' },
+  { value: 'PROPERTY', label: 'PROPERTY / Real Estate' },
+  { value: 'FREELANCE', label: 'FREELANCE / Services' },
+  { value: 'PSL_FRANCHISE_BID', label: 'PSL_FRANCHISE_BID 🏏' },
+  { value: 'PSL_PLAYER_TRANSFER', label: 'PSL_PLAYER_TRANSFER 🏏' },
+  { value: 'MARKETPLACE', label: 'MARKETPLACE / General' },
+  { value: 'CUSTOM', label: 'CUSTOM' },
+];
 
 interface AITemplateResult {
   dealType: string;
@@ -18,6 +30,8 @@ interface AITemplateResult {
   gracePeriodHours: number;
   suggestedCollateralPct: number;
   detectedLanguage: string;
+  redFlag?: boolean;
+  redFlagReason?: string;
 }
 
 interface ActiveDeal {
@@ -43,6 +57,7 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
   const [localScore, setLocalScore] = useState(pakkaScore);
 
   const [description, setDescription] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
@@ -114,7 +129,7 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ description }),
+        body: JSON.stringify({ description, dealTypeHint: selectedCategory || undefined }),
       });
 
       const data = await res.json();
@@ -415,6 +430,20 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
               </div>
 
               <div className="input-group">
+                <label className="input-label">DEAL_CATEGORY:</label>
+                <select
+                  className="brutalist-textarea"
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  style={{ padding: '10px', height: 'auto', minHeight: 'unset', cursor: 'pointer' }}
+                >
+                  {DEAL_CATEGORIES.map((cat) => (
+                    <option key={cat.value} value={cat.value}>{cat.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="input-group">
                 <label className="input-label">ITEM_IMAGES: (Max 3)</label>
                 <input
                   ref={fileInputRef}
@@ -680,6 +709,29 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
                   <div className="result-header">
                     <span className="result-status">◉ ANALYSIS_COMPLETE</span>
                   </div>
+
+                  {/* ── Red Flag Warning ── */}
+                  {result.redFlag && (
+                    <div style={{
+                      padding: '14px 16px', marginBottom: '16px',
+                      background: '#2e0a0a', border: '2px solid #ff4141',
+                      color: '#ff4141', fontFamily: 'monospace', fontWeight: 700,
+                      display: 'flex', alignItems: 'flex-start', gap: '10px',
+                      animation: 'glowPulse 1.5s infinite',
+                    }}>
+                      <span style={{ fontSize: '1.4rem', lineHeight: 1 }}>⚠️</span>
+                      <div>
+                        <div style={{ fontSize: '0.95rem', marginBottom: '4px' }}>
+                          AI WARNING: Market Value Mismatch. Potential Scam Detected.
+                        </div>
+                        {result.redFlagReason && (
+                          <div style={{ fontSize: '0.78rem', color: '#ff8888', fontWeight: 400 }}>
+                            {result.redFlagReason}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="result-grid">
                     <div className="result-card highlight-card">
