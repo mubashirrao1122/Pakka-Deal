@@ -4,6 +4,11 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 dotenv.config();
 
+// Fix for BigInt JSON serialization error
+(BigInt.prototype as any).toJSON = function () {
+  return this.toString();
+};
+
 import healthRouter from './routes/health';
 import dealsRouter from './routes/deals';
 import aiRouter from './routes/ai';
