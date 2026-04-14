@@ -80,6 +80,12 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
   const [notification, setNotification] = useState<Notification | null>(null);
   const [processingDealId, setProcessingDealId] = useState<number | null>(null);
 
+  // Off-ramp withdraw state
+  const [withdrawOpenDealId, setWithdrawOpenDealId] = useState<number | null>(null);
+  const [jazzCashNumber, setJazzCashNumber] = useState('');
+  const [withdrawingDealId, setWithdrawingDealId] = useState<number | null>(null);
+  const [withdrawSuccessDealIds, setWithdrawSuccessDealIds] = useState<Set<number>>(new Set());
+
   const handleAnalyzeDeal = async () => {
     if (!description.trim()) {
       setError('DESCRIPTION_REQUIRED');
@@ -204,6 +210,21 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
   const showNotification = (n: Notification) => {
     setNotification(n);
     setTimeout(() => setNotification(null), 5000);
+  };
+
+  const handleWithdraw = (dealId: number) => {
+    if (!jazzCashNumber.match(/^03\d{9}$/)) {
+      showNotification({ type: 'warning', message: '[ INVALID_JAZZCASH_NUMBER ] — Format: 03XXXXXXXXX' });
+      return;
+    }
+    setWithdrawingDealId(dealId);
+    setTimeout(() => {
+      setWithdrawingDealId(null);
+      setWithdrawSuccessDealIds((prev) => new Set(prev).add(dealId));
+      setWithdrawOpenDealId(null);
+      setJazzCashNumber('');
+      showNotification({ type: 'success', message: `[ PKR_SENT_TO_JAZZCASH_${jazzCashNumber} ] — Off-Ramp Complete.` });
+    }, 3500);
   };
 
   const handleReleaseFunds = async (id: number) => {
@@ -447,6 +468,79 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
                       <div className="deal-card-resolved">
                         <span className="resolved-icon">✓</span>
                         <span>FUNDS_RELEASED</span>
+
+                        {/* Off-Ramp Withdraw Flow */}
+                        {withdrawSuccessDealIds.has(deal.id) ? (
+                          <div className="withdraw-success" style={{
+                            marginTop: '12px', padding: '10px 14px',
+                            background: '#0a2e0a', border: '2px solid #00ff41',
+                            color: '#00ff41', fontFamily: 'monospace', fontWeight: 700,
+                            textAlign: 'center', animation: 'glowPulse 1.5s infinite',
+                          }}>
+                            [ PKR_TRANSFERRED_SUCCESSFULLY ]
+                          </div>
+                        ) : withdrawingDealId === deal.id ? (
+                          <div className="withdraw-loading" style={{
+                            marginTop: '12px', padding: '10px 14px',
+                            background: '#1a1a2e', border: '2px solid #e2b714',
+                            color: '#e2b714', fontFamily: 'monospace', fontWeight: 700,
+                            textAlign: 'center',
+                          }}>
+                            <span className="spinner-inline" style={{ marginRight: 8 }}></span>
+                            RELAYER_CONVERTING_CRYPTO_TO_PKR...
+                          </div>
+                        ) : withdrawOpenDealId === deal.id ? (
+                          <div className="withdraw-form" style={{
+                            marginTop: '12px', padding: '12px',
+                            background: '#111', border: '2px solid #555',
+                          }}>
+                            <label style={{ display: 'block', marginBottom: 6, fontFamily: 'monospace', color: '#888', fontSize: '0.8rem' }}>
+                              JAZZCASH_MOBILE_NUMBER:
+                            </label>
+                            <input
+                              type="tel"
+                              placeholder="03XXXXXXXXX"
+                              value={jazzCashNumber}
+                              onChange={(e) => setJazzCashNumber(e.target.value)}
+                              maxLength={11}
+                              style={{
+                                width: '100%', padding: '8px 10px', marginBottom: 8,
+                                background: '#000', border: '2px solid #00ff41',
+                                color: '#00ff41', fontFamily: 'monospace', fontSize: '1rem',
+                                outline: 'none', boxSizing: 'border-box',
+                              }}
+                            />
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button
+                                className="brutalist-btn"
+                                onClick={() => handleWithdraw(deal.id)}
+                                style={{ flex: 1, background: '#00ff41', color: '#000', fontWeight: 800, border: 'none', padding: '8px', cursor: 'pointer', fontFamily: 'monospace' }}
+                              >
+                                {'>'} CONFIRM_WITHDRAW
+                              </button>
+                              <button
+                                className="brutalist-btn"
+                                onClick={() => { setWithdrawOpenDealId(null); setJazzCashNumber(''); }}
+                                style={{ background: '#333', color: '#aaa', border: '2px solid #555', padding: '8px 12px', cursor: 'pointer', fontFamily: 'monospace' }}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            className="brutalist-btn"
+                            onClick={() => setWithdrawOpenDealId(deal.id)}
+                            style={{
+                              marginTop: '12px', width: '100%',
+                              background: '#1a0a2e', border: '2px solid #bf40bf',
+                              color: '#bf40bf', fontFamily: 'monospace', fontWeight: 700,
+                              padding: '10px', cursor: 'pointer', textAlign: 'center',
+                            }}
+                          >
+                            {'>'} WITHDRAW_TO_JAZZCASH_PKR
+                          </button>
+                        )}
                       </div>
                     )}
 
