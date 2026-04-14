@@ -113,9 +113,11 @@ riskLevel rules:
   },
 
   async generateTemplate(req: AITemplateRequest): Promise<AITemplateResult> {
-    const prompt = `You are a deal assistant for Pakka Deal — 
-a Pakistani escrow platform. Extract deal structure from 
-this description. The user may write in English, Urdu, 
+    const prompt = `SYSTEM: You are a JSON-only API. You MUST respond with a single raw JSON object. 
+Do NOT wrap it in markdown code fences (\`\`\`). Do NOT include any text, explanation, or commentary before or after the JSON.
+
+ROLE: You are a deal assistant for Pakka Deal — a Pakistani escrow platform.
+Extract deal structure from the user's description. The user may write in English, Urdu, 
 or Roman Urdu (Urdu written in English letters).
 
 User description: "${req.description}"
@@ -137,7 +139,7 @@ Grace period rules:
 - PROPERTY: 168 hours (7 days) per milestone
 - PSL_FRANCHISE: 720 hours (30 days) per milestone
 
-Return ONLY valid raw JSON. No explanation, no markdown, no conversational text.
+REQUIRED OUTPUT — exactly this JSON shape, nothing else:
 {
   "dealType": "PROPERTY",
   "title": "Short descriptive title in English (max 60 chars)",
@@ -151,10 +153,18 @@ Return ONLY valid raw JSON. No explanation, no markdown, no conversational text.
   "detectedLanguage": "roman_urdu"
 }
 
-detectedLanguage: "english", "urdu", or "roman_urdu"
-Milestones must sum to exactly 100 percent.`;
+RULES:
+- dealType must be one of: CAR, PROPERTY, FREELANCE, PSL_FRANCHISE, PSL_PLAYER, MARKETPLACE, CUSTOM
+- milestones[].percent values MUST sum to exactly 100
+- detectedLanguage must be one of: "english", "urdu", "roman_urdu"
+- Output ONLY the JSON object. No markdown. No explanation.`;
 
-    const result = await model.generateContent(prompt);
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+      },
+    });
     const text = result.response.text();
     const parsed = safeParseJSON<AITemplateResult>(text);
 

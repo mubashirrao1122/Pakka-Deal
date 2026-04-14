@@ -92,7 +92,7 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
     try {
       const token = await getAccessToken();
 
-      const res = await fetch('http://localhost:3001/api/ai/template', {
+      const res = await fetch('http://localhost:3001/ai/template', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
