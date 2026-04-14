@@ -183,4 +183,40 @@ router.patch('/:id/state', verifyPrivyToken, async (req: Request, res: Response)
   }
 });
 
+// POST /deals/:id/pay-fiat
+// Mock Fiat On-Ramp Relayer for Hackathon MVP
+router.post('/:id/pay-fiat', async (req: Request, res: Response) => {
+  try {
+    const dealId = parseInt(String(req.params.id));
+    const { jazzCashNumber, amountPkr, buyerAddress } = req.body;
+
+    if (!jazzCashNumber || jazzCashNumber.length < 11) {
+      res.status(400).json({ success: false, error: 'Valid JazzCash mobile number required' });
+      return;
+    }
+
+    // For Hackathon MVP: Document the mocked Relayer logic
+    // 1. Relayer verifies fiat received via JazzCash/Easypaisa APIs
+    // 2. Relayer calls EscrowVault.joinAndLockFunds() on-chain
+    
+    // Update local cache state to simulate success
+    await prisma.dealCache.update({
+      where: { dealId },
+      data: {
+        currentState: 'LOCKED',
+        buyerWallet: buyerAddress || '0x0000D0000000000000000000000000000000dEaD',
+        lastSynced: new Date(),
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'Fiat received. Funds locked in escrow via Relayer.',
+      txHash: '0xMockRelayerTxHash' + Math.random().toString(16).slice(2, 10).padEnd(52, '0')
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;
