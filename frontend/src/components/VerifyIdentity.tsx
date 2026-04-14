@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LogInWithAnonAadhaar, useAnonAadhaar } from '@anon-aadhaar/react';
+import { useAnonAadhaar } from '@anon-aadhaar/react';
 import './VerifyIdentity.css';
 
 interface VerifyIdentityProps {
@@ -7,7 +7,7 @@ interface VerifyIdentityProps {
 }
 
 export default function VerifyIdentity({ onBypass }: VerifyIdentityProps) {
-  const [anonAadhaar] = useAnonAadhaar();
+  const [anonAadhaar, startReq] = useAnonAadhaar();
   const [nullifier, setNullifier] = useState<string | null>(null);
 
   useEffect(() => {
@@ -80,10 +80,16 @@ export default function VerifyIdentity({ onBypass }: VerifyIdentityProps) {
               )}
 
               <div className="aadhaar-widget">
-                <LogInWithAnonAadhaar
-                  nullifierSeed={1234}
-                  fieldsToReveal={['revealAgeAbove18']}
-                />
+                <button
+                  className="brutalist-btn"
+                  onClick={() => {
+                    // @ts-expect-error - bypass strict AnonAadhaarArgs typing for headless login
+                    startReq({ type: 'login', args: { nullifierSeed: 1234, fieldsToReveal: ['revealAgeAbove18'] } });
+                  }}
+                >
+                  <span className="btn-text">{'>'} GENERATE_ZK_PROOF</span>
+                  <span className="cursor-blink">_</span>
+                </button>
               </div>
 
               <div className="security-note">
