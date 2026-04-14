@@ -53,6 +53,29 @@ export default function PayDeal({ dealId }: PayDealProps) {
     fetchDeal();
   }, [dealId]);
 
+  // ── Milestone Calculation ──
+  const totalAmountPkr = Number(deal?.cached?.amountPkr) || 7700000;
+  
+  let firstMilestonePct = 100;
+  let firstMilestoneLabel = 'FULL_PAYMENT';
+  
+  try {
+    const aiM = typeof deal?.aiRisk?.milestones === 'string' 
+      ? JSON.parse(deal?.aiRisk?.milestones) 
+      : deal?.aiRisk?.milestones;
+
+    if (aiM && Array.isArray(aiM) && aiM.length > 0) {
+      firstMilestonePct = aiM[0].percent || aiM[0].percentage || 100;
+      firstMilestoneLabel = aiM[0].label || 'MILESTONE_1';
+    } else if (deal?.milestones && deal.milestones.length > 0) {
+      firstMilestoneLabel = deal.milestones[0].label || 'MILESTONE_1';
+    }
+  } catch (e) {
+    // defaults apply
+  }
+
+  const milestoneAmountPkr = Math.floor((totalAmountPkr * firstMilestonePct) / 100);
+
   const handlePayment = async () => {
     if (!jazzCashNumber || jazzCashNumber.length < 11) {
       setPayError('VALID_MOBILE_NUMBER_REQUIRED');
@@ -68,7 +91,7 @@ export default function PayDeal({ dealId }: PayDealProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           buyerAddress: '0x000000000000000000000000000000000000dEaD',
-          amountPkr: deal?.cached?.amountPkr || 5000,
+          amountPkr: milestoneAmountPkr,
           jazzCashNumber,
         }),
       });
@@ -323,7 +346,7 @@ export default function PayDeal({ dealId }: PayDealProps) {
                 <span className="btn-text">
                   {paying
                     ? '[ PROCESSING_FIAT_TO_CRYPTO... ]'
-                    : '> PAY_WITH_JAZZCASH_PKR'}
+                    : `> PAY MILESTONE 1: ${firstMilestoneLabel.toUpperCase()} (Rs. ${milestoneAmountPkr.toLocaleString()})`}
                 </span>
                 {!paying && <span className="cursor-blink">_</span>}
                 {paying && <span className="spinner-inline"></span>}

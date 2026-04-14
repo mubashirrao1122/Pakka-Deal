@@ -31,6 +31,7 @@ interface DashboardProps {
 
 export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProps) {
   const { getAccessToken, user, logout } = usePrivy();
+  const [localScore, setLocalScore] = useState(pakkaScore);
 
   const [description, setDescription] = useState('');
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -225,6 +226,7 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
       setActiveDeals((prev) =>
         prev.map((d) => (d.id === id ? { ...d, status: 'COMPLETED' } : d))
       );
+      setLocalScore((prev) => prev + 15);
       showNotification({
         type: 'success',
         message: '[ FUNDS_SUCCESSFULLY_TRANSFERRED_TO_SELLER ]',
@@ -284,7 +286,7 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
         <div className="dash-user-info">
           <div className="dash-score">
             <span className="score-label">PAKKA_SCORE:</span>
-            <span className="score-value">{pakkaScore}</span>
+            <span className="score-value">{localScore}</span>
           </div>
           <div className="dash-id">
             {user?.wallet?.address && (
