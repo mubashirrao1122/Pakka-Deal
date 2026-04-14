@@ -61,13 +61,19 @@ export const contractService = {
     milestoneAmounts:  string[];
   }): Promise<{ txHash: string; dealId: number }> {
 
+    // ABI: createDeal(uint8 _dealType, uint256 _totalAmount, uint256 _collateralPercent,
+    //                 string[] _milestoneLabels, uint256[] _milestoneAmounts) payable
+    // seller = msg.sender (the relayer wallet), sellerBond sent as msg.value
+    const totalAmount = BigInt(params.totalAmountWei);
+    const sellerBond  = (totalAmount * BigInt(params.collateralPercent)) / 100n;
+
     const tx = await getEscrowVaultSigner().createDeal(
-      params.sellerAddress,
       params.dealType,
-      BigInt(params.totalAmountWei),
+      totalAmount,
       params.collateralPercent,
       params.milestoneLabels,
-      params.milestoneAmounts.map((a) => BigInt(a))
+      params.milestoneAmounts.map((a) => BigInt(a)),
+      { value: sellerBond }  // payable: send seller bond as ETH
     );
 
     const receipt = await tx.wait();
