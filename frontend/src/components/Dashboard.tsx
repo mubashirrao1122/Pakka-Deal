@@ -58,6 +58,7 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
 
   const [description, setDescription] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [witness, setWitness] = useState('');
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
@@ -221,6 +222,7 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
             amountPkr: 0,
             buyerWallet: '0x0000000000000000000000000000000000000000',
             imagePreviews,
+            witness: witness || undefined,
             existingDealId: dealId,
           }),
         });
@@ -394,7 +396,7 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
           </div>
           <div className="dash-id">
             {user?.wallet?.address && (
-              <span className="wallet-tag">
+              <span className="wallet-tag" title="Privy ID / Account">
                 {user.wallet.address.slice(0, 6)}...{user.wallet.address.slice(-4)}
               </span>
             )}
@@ -441,6 +443,20 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
                     <option key={cat.value} value={cat.value}>{cat.label}</option>
                   ))}
                 </select>
+              </div>
+
+              <div className="input-group">
+                <label className="input-label">DEAL_WITNESS (Gawah — Optional):</label>
+                <input
+                  className="brutalist-input"
+                  type="text"
+                  placeholder="Witness phone or email — e.g. 03001234567 or gawah@email.com"
+                  value={witness}
+                  onChange={(e) => setWitness(e.target.value)}
+                />
+                <span style={{ fontSize: '0.7rem', color: '#666', fontFamily: 'monospace', marginTop: '4px', display: 'block' }}>
+                  ℹ A trusted Gawah (witness) can vouch for the deal if a dispute arises.
+                </span>
               </div>
 
               <div className="input-group">
@@ -520,7 +536,7 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
                 <div className="header-title">ACTIVE_DEALS ({activeDeals.length})</div>
               </div>
               <div className="terminal-body">
-                <h2 className="panel-title">{'>'} MANAGE_ESCROW</h2>
+                <h2 className="panel-title">{'>'} MANAGE_DEALS</h2>
 
                 {activeDeals.map((deal) => (
                   <div key={deal.id} className={`deal-card deal-status-${deal.status.toLowerCase()}`}>
@@ -559,6 +575,27 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
                           </span>
                         </button>
                       </div>
+                    )}
+
+                    {deal.status === 'FUNDS_LOCKED' && (
+                      <button
+                        className="brutalist-btn"
+                        onClick={() => {
+                          const link = `${window.location.origin}/pay/${deal.id}`;
+                          const msg = encodeURIComponent(
+                            `Assalam o Alaikum! 🤝\nApka Pakka Deal tayyar hai:\n\n${deal.title}\n💰 Amount: ${deal.amount}\n\nAbhi pay karein:\n${link}\n\n— PakkaDeal Safe ◆`
+                          );
+                          window.open(`https://wa.me/?text=${msg}`, '_blank');
+                        }}
+                        style={{
+                          marginTop: '8px', width: '100%',
+                          background: '#0a2e0a', border: '2px solid #25D366',
+                          color: '#25D366', fontFamily: 'monospace', fontWeight: 700,
+                          padding: '8px', cursor: 'pointer', textAlign: 'center', fontSize: '0.8rem',
+                        }}
+                      >
+                        📱 SHARE_VIA_WHATSAPP
+                      </button>
                     )}
 
                     {deal.status === 'COMPLETED' && (
@@ -739,7 +776,7 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
                       <span className="card-value type-value">{result.dealType}</span>
                     </div>
                     <div className="result-card">
-                      <span className="card-label">COLLATERAL_PCT</span>
+                      <span className="card-label">ZAMANAT (Guarantee)</span>
                       <span className="card-value accent-value">{result.suggestedCollateralPct}%</span>
                     </div>
                     <div className="result-card">
@@ -783,8 +820,8 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
                   >
                     <span className="btn-text">
                       {creating
-                        ? '[ INITIATING_SMART_CONTRACT... ]'
-                        : '> CREATE_DEAL_ON_CHAIN'}
+                        ? '[ CREATING_DIGITAL_ESCROW... ]'
+                        : '> CREATE_PAKKA_DEAL'}
                     </span>
                     {!creating && <span className="cursor-blink">_</span>}
                     {creating && <span className="spinner-inline"></span>}
@@ -800,7 +837,7 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
                     <div className="glow-icon">✓</div>
                   </div>
 
-                  <h3 className="success-title">[ DEAL_SMART_CONTRACT_DEPLOYED ]</h3>
+                  <h3 className="success-title">[ PAKKA_DEAL_AGREEMENT_CREATED ]</h3>
 
                   <div className="result-grid">
                     <div className="result-card highlight-card">
@@ -837,6 +874,25 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
                         : '> COPY_LINK_FOR_BUYER'}
                     </span>
                     {!linkCopied && <span className="cursor-blink">_</span>}
+                  </button>
+
+                  <button
+                    className="brutalist-btn"
+                    onClick={() => {
+                      const link = `${window.location.origin}/pay/${dealSuccess.dealId}`;
+                      const msg = encodeURIComponent(
+                        `Assalam o Alaikum! 🤝\nApka Pakka Deal tayyar hai:\n\n${result?.title || 'Deal'}\n💰 Zamanat: ${result?.suggestedCollateralPct || 20}%\n\nAbhi pay karein:\n${link}\n\n— PakkaDeal Safe ◆`
+                      );
+                      window.open(`https://wa.me/?text=${msg}`, '_blank');
+                    }}
+                    style={{
+                      marginTop: '8px', width: '100%',
+                      background: '#0a2e0a', border: '2px solid #25D366',
+                      color: '#25D366', fontFamily: 'monospace', fontWeight: 700,
+                      padding: '12px', cursor: 'pointer', textAlign: 'center',
+                    }}
+                  >
+                    <span className="btn-text">📱 SHARE_VIA_WHATSAPP</span>
                   </button>
 
                   <button

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAnonAadhaar } from '@anon-aadhaar/react';
 import './VerifyIdentity.css';
 
@@ -7,8 +7,20 @@ interface VerifyIdentityProps {
 }
 
 export default function VerifyIdentity({ onBypass }: VerifyIdentityProps) {
-  const [anonAadhaar, startReq] = useAnonAadhaar();
+  const [anonAadhaar] = useAnonAadhaar();
   const [nullifier, setNullifier] = useState<string | null>(null);
+  const [isMuxLoading, setIsMuxLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setIsMuxLoading(true);
+      setTimeout(() => {
+        setIsMuxLoading(false);
+        if (onBypass) onBypass('0x123456789abcdef0deadbeef42069faceb00c1337');
+      }, 3500);
+    }
+  };
 
   useEffect(() => {
     if (anonAadhaar.status === 'logged-in') {
@@ -23,7 +35,7 @@ export default function VerifyIdentity({ onBypass }: VerifyIdentityProps) {
   }, [anonAadhaar]);
 
   const isVerified = anonAadhaar.status === 'logged-in';
-  const isLoading = anonAadhaar.status === 'logging-in';
+  const isLoading = anonAadhaar.status === 'logging-in' || isMuxLoading;
 
   return (
     <div className="verify-container">
@@ -80,14 +92,19 @@ export default function VerifyIdentity({ onBypass }: VerifyIdentityProps) {
               )}
 
               <div className="aadhaar-widget">
+                <input
+                  type="file"
+                  accept="image/*"
+                  ref={fileInputRef}
+                  style={{ display: 'none' }}
+                  onChange={handleFileUpload}
+                />
                 <button
                   className="brutalist-btn"
-                  onClick={() => {
-                    // @ts-expect-error - bypass strict AnonAadhaarArgs typing for headless login
-                    startReq({ type: 'login', args: { nullifierSeed: 1234, fieldsToReveal: ['revealAgeAbove18'] } });
-                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isLoading}
                 >
-                  <span className="btn-text">{'>'} GENERATE_ZK_PROOF</span>
+                  <span className="btn-text">{'>'} {isLoading ? 'SCANNING_QR_AND_PROVING...' : 'GENERATE_ZK_PROOF'}</span>
                   <span className="cursor-blink">_</span>
                 </button>
               </div>

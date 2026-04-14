@@ -162,7 +162,7 @@ export default function PayDeal({ dealId }: PayDealProps) {
               <div className="glow-icon">⛓</div>
             </div>
 
-            <h2 className="pay-success-title">[ FUNDS_LOCKED_IN_ESCROW ]</h2>
+            <h2 className="pay-success-title">[ FUNDS_LOCKED_IN_PAKKA_DEAL_SAFE ]</h2>
 
             <div className="pay-success-grid">
               <div className="result-card highlight-card">
@@ -179,7 +179,7 @@ export default function PayDeal({ dealId }: PayDealProps) {
               <p className="success-line">TRANSACTION SUCCESSFUL.</p>
               <p className="success-sub">
                 The AI Agent will now monitor the milestones.
-                Funds are secured in the smart contract until
+                Funds are secured in the Pakka Deal Safe until
                 both parties confirm delivery.
               </p>
             </div>
@@ -268,11 +268,11 @@ export default function PayDeal({ dealId }: PayDealProps) {
                 <div className="sec-badge" style={{ borderColor: hasSellerBond ? '#00ff41' : '#ff4141' }}>
                   <span>{hasSellerBond ? '✓' : '✕'}</span>
                   {hasSellerBond
-                    ? 'SELLER_BOND_LOCKED — Dual-Lock Active'
-                    : 'SELLER_BOND_MISSING — Caution'}
+                    ? 'SELLER_ZAMANAT_LOCKED — Dual-Lock Active'
+                    : 'SELLER_ZAMANAT_MISSING — Caution'}
                 </div>
                 <div className="sec-badge">
-                  <span>⛓</span> Smart Contract Escrow
+                  <span>⛓</span> Pakka Deal Safe (Digital Escrow)
                 </div>
                 <div className="sec-badge">
                   <span>⚿</span> ZK Identity Verified
@@ -347,7 +347,7 @@ export default function PayDeal({ dealId }: PayDealProps) {
                 <div className="gateway-icon">₨</div>
                 <div className="gateway-text">
                   <span className="gateway-label">JAZZCASH / EASYPAISA</span>
-                  <span className="gateway-sub">Fiat → Crypto → Smart Contract</span>
+                  <span className="gateway-sub">Fiat → Crypto → Pakka Deal Safe</span>
                 </div>
               </div>
 
@@ -362,7 +362,7 @@ export default function PayDeal({ dealId }: PayDealProps) {
                   Rs. {totalAmountPkr.toLocaleString()}
                 </div>
                 <div style={{ fontSize: '0.7rem', color: '#888', marginTop: '4px' }}>
-                  Full amount locked in escrow — released to seller per milestone
+                  Full amount locked in Pakka Deal Safe — released to seller per milestone
                 </div>
               </div>
 
@@ -394,15 +394,15 @@ export default function PayDeal({ dealId }: PayDealProps) {
                     ? '[ PROCESSING_FIAT_TO_CRYPTO... ]'
                     : state === 'LOCKED'
                       ? '[ FUNDS_ALREADY_LOCKED ]'
-                      : `> LOCK FULL AMOUNT IN ESCROW (Rs. ${totalAmountPkr.toLocaleString()})`}
+                      : `> LOCK FULL AMOUNT IN PAKKA DEAL SAFE (Rs. ${totalAmountPkr.toLocaleString()})`}
                 </span>
                 {!paying && state !== 'LOCKED' && <span className="cursor-blink">_</span>}
                 {paying && <span className="spinner-inline"></span>}
               </button>
 
               <div className="pay-assurance">
-                <p>◆ Full amount locked in escrow, released per milestone.</p>
-                <p>◆ Seller has locked a performance bond — dual-lock active.</p>
+                <p>◆ Full amount locked in Pakka Deal Safe, released per milestone.</p>
+                <p>◆ Seller has locked Zamanat (guarantee deposit) — dual-lock active.</p>
                 <p>◆ Dispute resolution via 3-arbitrator panel.</p>
               </div>
             </div>
