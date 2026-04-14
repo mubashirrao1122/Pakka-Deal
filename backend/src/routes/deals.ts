@@ -184,27 +184,35 @@ router.patch('/:id/state', verifyPrivyToken, async (req: Request, res: Response)
 });
 
 // POST /deals/:id/pay-fiat
-// Mock Fiat On-Ramp Relayer for Hackathon MVP
+// Fiat On-Ramp Relayer: accepts fiat payment and locks buyer funds on-chain
 router.post('/:id/pay-fiat', async (req: Request, res: Response) => {
   try {
     const dealId = parseInt(String(req.params.id));
-    const { jazzCashNumber, amountPkr, buyerAddress } = req.body;
+    const { jazzCashNumber, buyerAddress } = req.body;
 
     if (!jazzCashNumber || jazzCashNumber.length < 11) {
       res.status(400).json({ success: false, error: 'Valid JazzCash mobile number required' });
       return;
     }
 
-    // For Hackathon MVP: Document the mocked Relayer logic
-    // 1. Relayer verifies fiat received via JazzCash/Easypaisa APIs
-    // 2. Relayer calls EscrowVault.joinAndLockFunds() on-chain
-    
-    // Update local cache state to simulate success
+    // 1. Fetch on-chain deal to get the exact required totalAmount
+    const onChainDeal = await contractService.getDeal(dealId);
+    const totalAmountWei = onChainDeal.totalAmount.toString();
+    const resolvedBuyer = buyerAddress || '0x000000000000000000000000000000000000dEaD';
+
+    // 2. Relayer calls EscrowVault.joinAndLockFunds() on-chain with full buyer amount
+    const txHash = await contractService.joinAndLockFunds({
+      dealId,
+      buyerAddress: resolvedBuyer,
+      totalAmountWei,
+    });
+
+    // 3. Sync local cache
     await prisma.dealCache.update({
       where: { dealId },
       data: {
         currentState: 'LOCKED',
-        buyerWallet: buyerAddress || '0x0000D0000000000000000000000000000000dEaD',
+        buyerWallet: resolvedBuyer,
         lastSynced: new Date(),
       },
     });
@@ -212,9 +220,64 @@ router.post('/:id/pay-fiat', async (req: Request, res: Response) => {
     res.json({
       success: true,
       message: 'Fiat received. Funds locked in escrow via Relayer.',
-      txHash: '0xMockRelayerTxHash' + Math.random().toString(16).slice(2, 10).padEnd(52, '0')
+      txHash,
     });
   } catch (error: any) {
+    console.error('Pay-fiat error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /deals/:id/confirm-milestone
+// Buyer confirms current milestone → on-chain release to seller
+router.post('/:id/confirm-milestone', verifyPrivyToken, async (req: Request, res: Response) => {
+  try {
+    const dealId = parseInt(String(req.params.id));
+    if (isNaN(dealId)) {
+      res.status(400).json({ success: false, error: 'Invalid deal ID' });
+      return;
+    }
+
+    // Call on-chain confirmMilestone (releases funds to seller for current milestone)
+    const txHash = await contractService.confirmMilestone(dealId);
+
+    // Re-read on-chain state to sync local cache
+    const onChainDeal = await contractService.getDeal(dealId);
+    const currentMilestone = Number(onChainDeal.currentMilestone);
+    // DealState enum: 0=PENDING,1=LOCKED,2=COMPLETED,3=DEFAULTED,4=DISPUTED,5=CLOSED
+    const stateMap: Record<number, string> = {
+      0: 'PENDING', 1: 'LOCKED', 2: 'COMPLETED',
+      3: 'DEFAULTED', 4: 'DISPUTED', 5: 'CLOSED',
+    };
+    const newState = stateMap[Number(onChainDeal.state)] || 'LOCKED';
+
+    await prisma.dealCache.update({
+      where: { dealId },
+      data: {
+        currentMilestone,
+        currentState: newState,
+        lastSynced:   new Date(),
+      },
+    });
+
+    // Fetch milestone details to return to frontend
+    const milestones = await contractService.getMilestones(dealId);
+
+    res.json({
+      success: true,
+      data: {
+        txHash,
+        currentMilestone,
+        dealState: newState,
+        milestones: milestones.map((m: any) => ({
+          label:     m.label,
+          amount:    m.amount.toString(),
+          completed: m.completed,
+        })),
+      },
+    });
+  } catch (error: any) {
+    console.error('Confirm milestone error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

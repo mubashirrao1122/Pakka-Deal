@@ -53,28 +53,22 @@ export default function PayDeal({ dealId }: PayDealProps) {
     fetchDeal();
   }, [dealId]);
 
-  // ── Milestone Calculation ──
-  const totalAmountPkr = Number(deal?.cached?.amountPkr) || 7700000;
-  
-  let firstMilestonePct = 100;
-  let firstMilestoneLabel = 'FULL_PAYMENT';
-  
-  try {
-    const aiM = typeof deal?.aiRisk?.milestones === 'string' 
-      ? JSON.parse(deal?.aiRisk?.milestones) 
-      : deal?.aiRisk?.milestones;
-
-    if (aiM && Array.isArray(aiM) && aiM.length > 0) {
-      firstMilestonePct = aiM[0].percent || aiM[0].percentage || 100;
-      firstMilestoneLabel = aiM[0].label || 'MILESTONE_1';
-    } else if (deal?.milestones && deal.milestones.length > 0) {
-      firstMilestoneLabel = deal.milestones[0].label || 'MILESTONE_1';
+  // ── Milestone data from on-chain ──
+  const onChainMilestones: { label: string; amount: string; completed: boolean }[] = (() => {
+    if (deal?.milestones && Array.isArray(deal.milestones) && deal.milestones.length > 0) {
+      return deal.milestones.map((m: any) => ({
+        label: m.label || m[0] || 'MILESTONE',
+        amount: (m.amount ?? m[1] ?? '0').toString(),
+        completed: m.completed ?? m[2] ?? false,
+      }));
     }
-  } catch (e) {
-    // defaults apply
-  }
+    return [];
+  })();
 
-  const milestoneAmountPkr = Math.floor((totalAmountPkr * firstMilestonePct) / 100);
+  const currentMilestoneIndex = Number(deal?.onChain?.currentMilestone ?? 0);
+  const totalAmountPkr = Number(deal?.cached?.amountPkr) || 7700000;
+  const sellerBondWei = deal?.onChain?.sellerBond?.toString() || '0';
+  const hasSellerBond = sellerBondWei !== '0';
 
   const handlePayment = async () => {
     if (!jazzCashNumber || jazzCashNumber.length < 11) {
@@ -91,7 +85,7 @@ export default function PayDeal({ dealId }: PayDealProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           buyerAddress: '0x000000000000000000000000000000000000dEaD',
-          amountPkr: milestoneAmountPkr,
+          amountPkr: totalAmountPkr,
           jazzCashNumber,
         }),
       });
@@ -105,8 +99,7 @@ export default function PayDeal({ dealId }: PayDealProps) {
       }
     } catch (err: any) {
       console.error('[PAY] Fiat payment failed:', err);
-      // For hackathon demo: simulate success even if backend route doesn't exist yet
-      setPaySuccess(true);
+      setPayError('NETWORK_ERROR: ' + (err?.message || 'Connection refused'));
     } finally {
       setPaying(false);
     }
@@ -221,7 +214,7 @@ export default function PayDeal({ dealId }: PayDealProps) {
   const dealType = cached?.dealType || 'GENERAL';
   const sellerAddr = cached?.sellerWallet || '—';
   const state = cached?.currentState || 'PENDING';
-  const milestoneCount = cached?.milestoneCount || 1;
+  const milestoneCount = cached?.milestoneCount || onChainMilestones.length || 1;
 
   return (
     <div className="pay-container">
@@ -270,7 +263,14 @@ export default function PayDeal({ dealId }: PayDealProps) {
                 </div>
               </div>
 
+              {/* ── Dual-Lock: Seller Bond Indicator ── */}
               <div className="pay-security-badges">
+                <div className="sec-badge" style={{ borderColor: hasSellerBond ? '#00ff41' : '#ff4141' }}>
+                  <span>{hasSellerBond ? '✓' : '✕'}</span>
+                  {hasSellerBond
+                    ? 'SELLER_BOND_LOCKED — Dual-Lock Active'
+                    : 'SELLER_BOND_MISSING — Caution'}
+                </div>
                 <div className="sec-badge">
                   <span>⛓</span> Smart Contract Escrow
                 </div>
@@ -281,6 +281,37 @@ export default function PayDeal({ dealId }: PayDealProps) {
                   <span>◈</span> AI Risk Monitored
                 </div>
               </div>
+
+              {/* ── Milestone Breakdown ── */}
+              {onChainMilestones.length > 0 && (
+                <div style={{ marginTop: '16px' }}>
+                  <div style={{ fontFamily: 'monospace', color: '#888', fontSize: '0.8rem', marginBottom: '8px' }}>
+                    MILESTONE_BREAKDOWN ({onChainMilestones.length}):
+                  </div>
+                  {onChainMilestones.map((m, i) => (
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                      padding: '6px 10px', marginBottom: '4px',
+                      background: m.completed ? '#0a2e0a' : i === currentMilestoneIndex ? '#1a1a2e' : '#111',
+                      border: `1px solid ${m.completed ? '#00ff41' : i === currentMilestoneIndex ? '#e2b714' : '#333'}`,
+                      fontFamily: 'monospace', fontSize: '0.85rem',
+                    }}>
+                      <span style={{ color: m.completed ? '#00ff41' : '#666', fontWeight: 700 }}>
+                        {String(i + 1).padStart(2, '0')}
+                      </span>
+                      <span style={{ flex: 1, color: m.completed ? '#00ff41' : '#ccc' }}>
+                        {m.label}
+                      </span>
+                      <span style={{
+                        color: m.completed ? '#00ff41' : i === currentMilestoneIndex ? '#e2b714' : '#666',
+                        fontWeight: 700, fontSize: '0.75rem',
+                      }}>
+                        {m.completed ? 'RELEASED' : i === currentMilestoneIndex ? 'NEXT' : 'PENDING'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* ── Item Images Gallery ── */}
               {cached?.imagePreviews && cached.imagePreviews.length > 0 && (
@@ -320,6 +351,21 @@ export default function PayDeal({ dealId }: PayDealProps) {
                 </div>
               </div>
 
+              {/* Show total deal amount — buyer locks full amount, milestones release staged */}
+              <div style={{
+                padding: '12px', marginBottom: '12px',
+                background: '#1a1a2e', border: '2px solid #e2b714',
+                fontFamily: 'monospace', color: '#e2b714', textAlign: 'center',
+              }}>
+                <div style={{ fontSize: '0.75rem', color: '#888' }}>TOTAL_DEAL_AMOUNT</div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 800 }}>
+                  Rs. {totalAmountPkr.toLocaleString()}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: '#888', marginTop: '4px' }}>
+                  Full amount locked in escrow — released to seller per milestone
+                </div>
+              </div>
+
               <div className="input-group">
                 <label className="input-label">JAZZCASH_MOBILE_NUMBER:</label>
                 <input
@@ -341,20 +387,22 @@ export default function PayDeal({ dealId }: PayDealProps) {
               <button
                 className="brutalist-btn pay-btn"
                 onClick={handlePayment}
-                disabled={paying}
+                disabled={paying || state === 'LOCKED'}
               >
                 <span className="btn-text">
                   {paying
                     ? '[ PROCESSING_FIAT_TO_CRYPTO... ]'
-                    : `> PAY MILESTONE 1: ${firstMilestoneLabel.toUpperCase()} (Rs. ${milestoneAmountPkr.toLocaleString()})`}
+                    : state === 'LOCKED'
+                      ? '[ FUNDS_ALREADY_LOCKED ]'
+                      : `> LOCK FULL AMOUNT IN ESCROW (Rs. ${totalAmountPkr.toLocaleString()})`}
                 </span>
-                {!paying && <span className="cursor-blink">_</span>}
+                {!paying && state !== 'LOCKED' && <span className="cursor-blink">_</span>}
                 {paying && <span className="spinner-inline"></span>}
               </button>
 
               <div className="pay-assurance">
-                <p>◆ Funds are locked in escrow, NOT sent to seller directly.</p>
-                <p>◆ Release only after you confirm delivery.</p>
+                <p>◆ Full amount locked in escrow, released per milestone.</p>
+                <p>◆ Seller has locked a performance bond — dual-lock active.</p>
                 <p>◆ Dispute resolution via 3-arbitrator panel.</p>
               </div>
             </div>

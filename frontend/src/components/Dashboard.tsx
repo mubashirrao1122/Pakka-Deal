@@ -1,6 +1,15 @@
 import { useState, useRef } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
+import { ethers } from 'ethers';
+import EscrowVaultABI from '../../../abis/EscrowVault.json';
 import './Dashboard.css';
+
+const ESCROW_ADDRESS = '0x74DFeAcefF0488c2741781f3FB1E11a47834727C';
+
+const DEAL_TYPE_MAP: Record<string, number> = {
+  CAR: 0, PROPERTY: 1, FREELANCE: 2, PSL_FRANCHISE: 3,
+  PSL_PLAYER: 4, MARKETPLACE: 5, CUSTOM: 6,
+};
 
 interface AITemplateResult {
   dealType: string;
@@ -131,54 +140,90 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
 
     try {
       const token = await getAccessToken();
-      const sellerAddress = user?.wallet?.address || '0x0000000000000000000000000000000000000000';
+      const sellerAddress = user?.wallet?.address || '';
+      if (!sellerAddress) {
+        setError('WALLET_NOT_CONNECTED');
+        setCreating(false);
+        return;
+      }
 
-      // Convert milestone percentages into wei amounts
-      // For demo: use a placeholder total amount (e.g., description-extracted or 1 ETH)
-      const totalAmountWei = '1000000000000000000'; // 1 ETH placeholder
+      // ── 1. Seller signs & pays bond directly on-chain via browser wallet ──
+      const browserProvider = new ethers.BrowserProvider((window as any).ethereum);
+      const signer = await browserProvider.getSigner();
+      const escrow = new ethers.Contract(ESCROW_ADDRESS, EscrowVaultABI, signer);
+
+      const totalAmountWei = ethers.parseEther('1'); // 1 ETH placeholder for demo
+      const collateralPercent = result.suggestedCollateralPct;
+      const sellerBond = (totalAmountWei * BigInt(collateralPercent)) / 100n;
+
+      const dealTypeNum = DEAL_TYPE_MAP[result.dealType] ?? 6;
       const milestoneLabels = result.milestones.map((m) => m.label);
-      const milestoneAmounts = result.milestones.map((m) =>
-        String(Math.floor((m.percent / 100) * 1e18))
+      const milestoneAmountsWei = result.milestones.map((m) =>
+        (totalAmountWei * BigInt(m.percent)) / 100n
       );
 
-      const res = await fetch('http://localhost:3001/deals', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          sellerAddress,
-          dealType: result.dealType === 'CAR' ? 0 : result.dealType === 'PROPERTY' ? 1 : 2,
-          totalAmountWei,
-          collateralPercent: result.suggestedCollateralPct,
-          milestoneLabels,
-          milestoneAmounts,
-          title: result.title,
-          amountPkr: 0,
-          buyerWallet: '0x0000000000000000000000000000000000000000',
-          imagePreviews,
-        }),
-      });
+      // Seller wallet sends the tx — bond is msg.value (Dual-Lock: seller commits first)
+      const tx = await escrow.createDeal(
+        dealTypeNum,
+        totalAmountWei,
+        collateralPercent,
+        milestoneLabels,
+        milestoneAmountsWei,
+        { value: sellerBond }
+      );
+      const receipt = await tx.wait();
 
-      const data = await res.json();
-
-      if (data.success) {
-        setDealSuccess(data.data);
-        // Add to active deals
-        setActiveDeals((prev) => [
-          ...prev,
-          {
-            id: data.data.dealId,
-            title: result.title,
-            status: 'FUNDS_LOCKED',
-            amount: '—',
-            buyer: 'ASSIGNED_ON_PAYMENT',
-          },
-        ]);
-      } else {
-        setError(data.error || 'DEAL_CREATION_FAILED');
+      // Parse DealCreated event to get dealId
+      let dealId = 0;
+      for (const log of receipt.logs) {
+        try {
+          const parsed = escrow.interface.parseLog(log);
+          if (parsed && parsed.name === 'DealCreated') {
+            dealId = Number(parsed.args[0]);
+            break;
+          }
+        } catch {
+          // skip
+        }
       }
+
+      // ── 2. Cache metadata in backend (no bond money handled here) ──
+      try {
+        await fetch('http://localhost:3001/deals', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            sellerAddress,
+            dealType: dealTypeNum,
+            totalAmountWei: totalAmountWei.toString(),
+            collateralPercent,
+            milestoneLabels,
+            milestoneAmounts: milestoneAmountsWei.map((a) => a.toString()),
+            title: result.title,
+            amountPkr: 0,
+            buyerWallet: '0x0000000000000000000000000000000000000000',
+            imagePreviews,
+            existingDealId: dealId,
+          }),
+        });
+      } catch {
+        // Non-fatal: on-chain deal exists even if cache fails
+      }
+
+      setDealSuccess({ dealId, txHash: receipt.hash, metadataCid: null });
+      setActiveDeals((prev) => [
+        ...prev,
+        {
+          id: dealId,
+          title: result.title,
+          status: 'FUNDS_LOCKED',
+          amount: '—',
+          buyer: 'ASSIGNED_ON_PAYMENT',
+        },
+      ]);
     } catch (err: any) {
       console.error('[DASHBOARD] Deal creation failed:', err);
       setError('CONTRACT_ERROR: ' + (err?.message || 'Transaction failed'));
@@ -231,26 +276,49 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
     setProcessingDealId(id);
     try {
       const token = await getAccessToken();
-      // Attempt real call, fall back to mock
-      try {
-        await fetch(`http://localhost:3001/deals/${id}/state`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ newState: 'COMPLETED' }),
+
+      // Call on-chain confirmMilestone via backend relayer
+      const res = await fetch(`http://localhost:3001/deals/${id}/confirm-milestone`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        const { dealState, currentMilestone, milestones } = data.data;
+        const totalMilestones = milestones?.length || 1;
+
+        if (dealState === 'COMPLETED') {
+          // All milestones done
+          setActiveDeals((prev) =>
+            prev.map((d) => (d.id === id ? { ...d, status: 'COMPLETED' } : d))
+          );
+          setLocalScore((prev) => prev + 15);
+          showNotification({
+            type: 'success',
+            message: `[ ALL_${totalMilestones}_MILESTONES_RELEASED — DEAL_COMPLETED ]`,
+          });
+        } else {
+          // Partial milestone released
+          showNotification({
+            type: 'info',
+            message: `[ MILESTONE_${currentMilestone}/${totalMilestones}_RELEASED — FUNDS_SENT_TO_SELLER ]`,
+          });
+        }
+      } else {
+        showNotification({
+          type: 'warning',
+          message: `[ MILESTONE_RELEASE_FAILED: ${data.error} ]`,
         });
-      } catch {
-        // Silently mock for demo
       }
-      setActiveDeals((prev) =>
-        prev.map((d) => (d.id === id ? { ...d, status: 'COMPLETED' } : d))
-      );
-      setLocalScore((prev) => prev + 15);
+    } catch (err: any) {
       showNotification({
-        type: 'success',
-        message: '[ FUNDS_SUCCESSFULLY_TRANSFERRED_TO_SELLER ]',
+        type: 'warning',
+        message: `[ MILESTONE_ERROR: ${err?.message || 'Unknown'} ]`,
       });
     } finally {
       setProcessingDealId(null);
@@ -449,7 +517,7 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
                           <span className="btn-text">
                             {processingDealId === deal.id
                               ? '[ PROCESSING... ]'
-                              : '> RELEASE_FUNDS'}
+                              : '> CONFIRM_MILESTONE'}
                           </span>
                         </button>
                         <button

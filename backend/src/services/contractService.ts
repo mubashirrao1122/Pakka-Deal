@@ -103,6 +103,26 @@ export const contractService = {
     return escrowVaultReadOnly.getMilestones(dealId);
   },
 
+  async joinAndLockFunds(params: {
+    dealId: number;
+    buyerAddress: string;
+    totalAmountWei: string;
+  }): Promise<string> {
+    const tx = await getEscrowVaultSigner().joinAndLockFunds(
+      params.dealId,
+      params.buyerAddress,
+      { value: BigInt(params.totalAmountWei) }
+    );
+    const receipt = await tx.wait();
+    return receipt.hash;
+  },
+
+  async confirmMilestone(dealId: number): Promise<string> {
+    const tx = await getEscrowVaultSigner().confirmMilestone(dealId);
+    const receipt = await tx.wait();
+    return receipt.hash;
+  },
+
   async totalDeals(): Promise<number> {
     const count = await escrowVaultReadOnly.totalDeals();
     return Number(count);
