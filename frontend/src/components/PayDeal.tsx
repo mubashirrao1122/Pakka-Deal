@@ -35,7 +35,7 @@ export default function PayDeal({ dealId }: PayDealProps) {
   useEffect(() => {
     const fetchDeal = async () => {
       try {
-        const res = await fetch(`http://localhost:3001/api/deals/${dealId}`);
+        const res = await fetch(`http://localhost:3001/deals/${dealId}`);
         const data = await res.json();
 
         if (data.success) {
@@ -63,7 +63,7 @@ export default function PayDeal({ dealId }: PayDealProps) {
     setPayError(null);
 
     try {
-      const res = await fetch(`http://localhost:3001/api/deals/${dealId}/pay-fiat`, {
+      const res = await fetch(`http://localhost:3001/deals/${dealId}/pay-fiat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

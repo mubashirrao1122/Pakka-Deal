@@ -85,9 +85,9 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
       return;
     }
 
-    setLoading(true);
     setError(null);
     setResult(null);
+    setLoading(true);
 
     try {
       const token = await getAccessToken();
@@ -134,7 +134,7 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
         String(Math.floor((m.percent / 100) * 1e18))
       );
 
-      const res = await fetch('http://localhost:3001/api/deals', {
+      const res = await fetch('http://localhost:3001/deals', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -211,7 +211,7 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
       const token = await getAccessToken();
       // Attempt real call, fall back to mock
       try {
-        await fetch(`http://localhost:3001/api/deals/${id}/state`, {
+        await fetch(`http://localhost:3001/deals/${id}/state`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -239,7 +239,7 @@ export default function Dashboard({ pakkaScore = 100, nullifier }: DashboardProp
     try {
       const token = await getAccessToken();
       try {
-        await fetch(`http://localhost:3001/api/deals/${id}/state`, {
+        await fetch(`http://localhost:3001/deals/${id}/state`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
